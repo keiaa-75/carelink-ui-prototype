@@ -1,0 +1,10 @@
+{
+  "description": "CareLink is a healthcare coordination platform that connects patients, barangay health workers, and physicians, facilitating patient registration, health record management, and early screenings for improved public health outcomes.",
+  "robots": {
+    "index": false
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  }
+}
