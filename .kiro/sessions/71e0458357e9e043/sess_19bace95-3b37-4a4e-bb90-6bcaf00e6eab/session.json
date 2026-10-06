@@ -1,0 +1,49 @@
+{
+  "schemaVersion": "1.0.0",
+  "dataModelVersion": 1,
+  "id": "sess_19bace95-3b37-4a4e-bb90-6bcaf00e6eab",
+  "title": "I want you to install the Caveman skill from this GitHub repository",
+  "agentMode": "vibe",
+  "workspacePaths": [
+    "c:\\Users\\MozKiT\\Desktop\\SudoNim"
+  ],
+  "rootPaths": [
+    "c:\\Users\\MozKiT\\Desktop\\SudoNim"
+  ],
+  "createdAt": "2026-10-03T14:32:31.492Z",
+  "lastModifiedAt": "2026-10-03T15:19:28.424Z",
+  "modelId": "auto",
+  "autopilot": false,
+  "contextSnapshotModelDisplay": {
+    "modelId": "auto",
+    "display": "Auto (model selected dynamically on the server)"
+  },
+  "semanticReviewEnabled": true,
+  "disableAutoCompaction": false,
+  "ftaEnabled": false,
+  "workflowsEnabled": false,
+  "specPlanEnabled": false,
+  "specWorkflow": "quick",
+  "specSkipClarificationEnabled": true,
+  "memoryConfig": {
+    "mode": "read_write",
+    "reflection": true
+  },
+  "status": "idle",
+  "_meta": {
+    "kiro": {
+      "policyPreset": [
+        "edit-workspace"
+      ],
+      "shellType": "powershell",
+      "settings": {
+        "workflows": {
+          "enabled": false
+        },
+        "goal": {
+          "enabled": false
+        }
+      }
+    }
+  }
+}

@@ -1,8 +1,20 @@
-import { FormEvent, ReactNode, useEffect, useMemo, useState } from "react";
+import { FormEvent, ReactNode, useEffect, useRef, useState } from "react";
 
 type Role = "citizen" | "barangay_staff" | "physician" | "admin";
 type FontSize = "small" | "default" | "large";
+type Density = "comfortable" | "compact";
+// Full appearance control surface. Theme + font size are real (persisted to this
+// browser and applied immediately). Reduced motion and density are also applied
+// immediately via document data attributes; they are device-local preferences.
+type Appearance = {
+  theme: string; setTheme: (theme: string) => void;
+  fontSize: FontSize; setFontSize: (size: FontSize) => void;
+  reducedMotion: boolean; setReducedMotion: (on: boolean) => void;
+  density: Density; setDensity: (density: Density) => void;
+  notify: boolean; setNotify: (on: boolean) => void;
+};
 type Tone = "blue" | "teal" | "green" | "amber" | "red" | "gray";
+type RegKind = "patient" | "staff" | "physician";
 
 const patients = [
   { name: "Maria Santos", code: "CL-2025-0842", household: "HH-041 · Purok 3", status: "Verified", screening: "Monitor", visit: "18 Jun 2025" },
@@ -51,12 +63,11 @@ const nav: Record<Role, { id: string; label: string; icon: string }[]> = {
   ],
   admin: [
     { id: "overview", label: "Overview", icon: "dashboard" },
-    { id: "statistics", label: "Statistics", icon: "chart" },
-    { id: "reports", label: "Reports", icon: "report" },
+    { id: "applications", label: "Physician Applications", icon: "approve" },
+    { id: "staff", label: "Barangay Staff Management", icon: "people" },
+    { id: "reports", label: "System Reports", icon: "report" },
     { id: "audit", label: "Audit Logs", icon: "shield" },
-    { id: "approvals", label: "Physician Approval", icon: "approve" },
-    { id: "accounts", label: "BHW Accounts", icon: "people" },
-    { id: "settings", label: "Profile & Settings", icon: "settings" },
+    { id: "settings", label: "Settings", icon: "settings" },
   ],
 };
 
@@ -92,12 +103,20 @@ function Icon({ name, size = 20 }: { name: string; size?: number }) {
     eye: <><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12z"/><circle cx="12" cy="12" r="2.5"/></>,
     arrow: <><path d="M5 12h14M14 7l5 5-5 5"/></>,
     close: <><path d="m6 6 12 12M18 6 6 18"/></>,
+    sliders: <><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2.4"/><circle cx="8" cy="17" r="2.4"/></>,
+    network: <><circle cx="12" cy="4" r="2.2"/><circle cx="5" cy="19" r="2.2"/><circle cx="19" cy="19" r="2.2"/><path d="M12 6.2V11M12 11l-5.3 5.4M12 11l5.3 5.4"/></>,
+    activity: <><path d="M3 12h4l2.5-7 5 14 2.5-7H21"/></>,
   };
   return <svg aria-hidden="true" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">{paths[name] || paths.record}</svg>;
 }
 
+// CareLink brand logo. Renders the supplied PNG lockup (icon + "CARELINK"
+// wordmark baked in) from /public. `compact` only tightens the wrapper; the
+// image is the full brand mark.
 function Logo({ compact = false }: { compact?: boolean }) {
-  return <div className="logo"><div className="logo-mark"><span></span><span></span></div>{!compact && <div><strong>CareLink</strong><small>Connected care, closer to home</small></div>}</div>;
+  return <div className={compact ? "logo logo-compact" : "logo"}>
+    <span className="logo-circle"><img className="logo-img" src="/carelinkpng.png" alt="CareLink" /></span>
+  </div>;
 }
 
 function Button({ children, variant = "primary", icon, onClick, type = "button", disabled = false, className = "" }: { children: ReactNode; variant?: "primary" | "secondary" | "ghost" | "danger"; icon?: string; onClick?: () => void; type?: "button" | "submit"; disabled?: boolean; className?: string }) {
@@ -125,11 +144,167 @@ function QRCode() {
   return <div className="qr" aria-label="Simulated unique QR code for Maria Santos">{blocks.map((n) => <i key={n} style={{ gridColumnStart: n % 10 + 1, gridRowStart: Math.floor(n / 10) + 1 }}></i>)}</div>;
 }
 
-function ThemeTools({ theme, setTheme, fontSize, setFontSize }: { theme: string; setTheme: (theme: string) => void; fontSize: FontSize; setFontSize: (size: FontSize) => void }) {
-  return <div className="theme-tools"><button className="icon-btn" onClick={() => setTheme(theme === "dark" ? "light" : "dark")} aria-label={`Use ${theme === "dark" ? "light" : "dark"} theme`}><Icon name={theme === "dark" ? "sun" : "moon"}/></button><div className="font-control" aria-label="Text size"><button className={fontSize === "small" ? "active" : ""} onClick={() => setFontSize("small")}>A</button><button className={fontSize === "default" ? "active" : ""} onClick={() => setFontSize("default")}>A</button><button className={fontSize === "large" ? "active" : ""} onClick={() => setFontSize("large")}>A</button></div></div>;
+const FONT_STEPS: FontSize[] = ["small", "default", "large"];
+const FONT_LABELS: Record<FontSize, string> = { small: "Small", default: "Default", large: "Large" };
+
+function FontSizeSlider({ fontSize, setFontSize, idSuffix = "" }: { fontSize: FontSize; setFontSize: (size: FontSize) => void; idSuffix?: string }) {
+  const index = Math.max(0, FONT_STEPS.indexOf(fontSize));
+  const labelId = `font-slider-label${idSuffix}`;
+  return <div className="font-slider" aria-label="Text size">
+    <span className="font-slider-cap font-slider-min" aria-hidden="true">A</span>
+    <input type="range" min={0} max={FONT_STEPS.length - 1} step={1} value={index} aria-labelledby={labelId} aria-valuetext={FONT_LABELS[FONT_STEPS[index]]} onChange={(event) => setFontSize(FONT_STEPS[Number(event.target.value)])}/>
+    <span className="font-slider-cap font-slider-max" aria-hidden="true">A</span>
+    <span id={labelId} className="font-slider-value">{FONT_LABELS[FONT_STEPS[index]]}</span>
+  </div>;
 }
 
-function Login({ onLogin, onRegister, theme, setTheme, fontSize, setFontSize }: { onLogin: (role: Role) => void; onRegister: (kind: "patient" | "staff") => void; theme: string; setTheme: (theme: string) => void; fontSize: FontSize; setFontSize: (size: FontSize) => void }) {
+function ThemeTools({ theme, setTheme, fontSize, setFontSize }: { theme: string; setTheme: (theme: string) => void; fontSize: FontSize; setFontSize: (size: FontSize) => void }) {
+  return <div className="theme-tools"><button className="icon-btn" onClick={() => setTheme(theme === "dark" ? "light" : "dark")} aria-label={`Use ${theme === "dark" ? "light" : "dark"} theme`}><Icon name={theme === "dark" ? "sun" : "moon"}/></button><FontSizeSlider fontSize={fontSize} setFontSize={setFontSize}/></div>;
+}
+
+const TEXT_SIZE_OPTIONS: { value: FontSize; label: string }[] = [
+  { value: "small", label: "Small" },
+  { value: "default", label: "Default" },
+  { value: "large", label: "Large" },
+];
+
+// AssistiveTouch-inspired floating Quick Settings control for the authenticated
+// dashboards. Fixed circular button near the top-right; reveals a compact
+// floating panel. Reuses the single app-wide theme + font-size state (no
+// duplicate systems) and adds device-local reduced-motion + a notification
+// preference toggle. The text size uses a draggable slider (FontSizeSlider).
+function QuickSettings({ appearance }: { appearance: Appearance }) {
+  const { theme, setTheme, fontSize, setFontSize, reducedMotion, setReducedMotion, notify, setNotify } = appearance;
+  const [open, setOpen] = useState(false);
+  const [closing, setClosing] = useState(false);
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const panelId = "quick-settings-panel";
+
+  const close = () => { setClosing(true); window.setTimeout(() => { setOpen(false); setClosing(false); }, reducedMotion ? 0 : 140); };
+  const toggle = () => { if (open) { close(); } else { setOpen(true); } };
+
+  useEffect(() => {
+    if (!open) return;
+    const onPointerDown = (event: MouseEvent) => {
+      if (wrapRef.current && !wrapRef.current.contains(event.target as Node)) close();
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") { setOpen(false); setClosing(false); buttonRef.current?.focus(); }
+    };
+    document.addEventListener("mousedown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => { document.removeEventListener("mousedown", onPointerDown); document.removeEventListener("keydown", onKeyDown); };
+  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  return <div className="quick-fab" ref={wrapRef}>
+    <button ref={buttonRef} type="button" className={open ? "quick-fab-btn active" : "quick-fab-btn"} aria-haspopup="dialog" aria-expanded={open} aria-controls={panelId} aria-label="Quick settings and appearance" onClick={toggle}>
+      <span className="quick-fab-ring" aria-hidden="true"></span>
+      <Icon name="sliders" size={20}/>
+    </button>
+    {open && <div className={closing ? "quick-panel closing" : "quick-panel"} id={panelId} role="dialog" aria-label="Quick settings" aria-modal="false">
+      <div className="quick-panel-head"><strong>Quick settings</strong><button type="button" className="icon-btn quick-panel-close" onClick={() => { setOpen(false); setClosing(false); buttonRef.current?.focus(); }} aria-label="Close quick settings"><Icon name="close" size={16}/></button></div>
+
+      <div className="quick-group" role="group" aria-label="Appearance">
+        <span className="quick-group-label">Appearance</span>
+        <div className="segmented quick-segmented">
+          <button className={theme === "light" ? "active" : ""} aria-pressed={theme === "light"} onClick={() => setTheme("light")}><Icon name="sun" size={16}/><span>Light</span></button>
+          <button className={theme === "dark" ? "active" : ""} aria-pressed={theme === "dark"} onClick={() => setTheme("dark")}><Icon name="moon" size={16}/><span>Dark</span></button>
+        </div>
+      </div>
+
+      <div className="quick-group" role="group" aria-label="Text size">
+        <span className="quick-group-label">Text size</span>
+        <FontSizeSlider fontSize={fontSize} setFontSize={setFontSize} idSuffix="-quick"/>
+      </div>
+
+      <div className="quick-group" role="group" aria-label="Quick controls">
+        <span className="quick-group-label">Quick controls</span>
+        <label className="quick-toggle"><span><strong>Reduced motion</strong><small>Limit animations and transitions</small></span><input type="checkbox" role="switch" checked={reducedMotion} onChange={(event) => setReducedMotion(event.target.checked)}/></label>
+        <label className="quick-toggle"><span><strong>Notifications</strong><small>Follow-up and alert reminders (demo)</small></span><input type="checkbox" role="switch" checked={notify} onChange={(event) => setNotify(event.target.checked)}/></label>
+      </div>
+
+      <p className="quick-note">Saved to this browser. Account details and role preferences stay in Profile &amp; Settings.</p>
+    </div>}
+  </div>;
+}
+
+// Connected-care flow visual for the landing hero. Communicates CareLink's
+// purpose (Patient -> BHW -> Physician; Screening -> Referral -> Record) with a
+// clean dashboard-style card instead of a decorative blob.
+function CareFlowVisual() {
+  const nodes: { icon: string; role: string; name: string; step: string; tone: Tone }[] = [
+    { icon: "people", role: "Patient", name: "Maria Santos", step: "Screening", tone: "green" },
+    { icon: "home", role: "Barangay Health Worker", name: "Ana Reyes", step: "Referral", tone: "teal" },
+    { icon: "consult", role: "Physician", name: "Dr. Paolo Mendoza", step: "Health record", tone: "blue" },
+  ];
+  return <div className="care-flow" aria-hidden="true">
+    <div className="care-flow-card">
+      <div className="care-flow-head"><span className="care-flow-mark"><Icon name="network" size={18}/></span><div><strong>Connected care</strong><small>One patient, one coordinated journey</small></div><span className="care-flow-live"><i></i>Live demo</span></div>
+      <ol className="care-flow-steps">
+        {nodes.map((node, index) => <li key={node.role}>
+          <span className={`care-flow-icon tone-${node.tone}`}><Icon name={node.icon} size={20}/></span>
+          <span className="care-flow-text"><strong>{node.role}</strong><small>{node.name}</small></span>
+          <span className={`badge badge-${node.tone}`}><i></i>{node.step}</span>
+          {index < nodes.length - 1 && <span className="care-flow-link" aria-hidden="true"><Icon name="arrow" size={16}/></span>}
+        </li>)}
+      </ol>
+      <div className="care-flow-foot"><Icon name="shield" size={15}/><span>Records open only with the patient's consent and a pairing-key check.</span></div>
+    </div>
+    <div className="care-flow-chip care-flow-chip-a"><Icon name="activity" size={15}/><span>Risk flagged early</span></div>
+    <div className="care-flow-chip care-flow-chip-b"><Icon name="qr" size={15}/><span>Privacy-safe QR</span></div>
+  </div>;
+}
+
+function Landing({ onGetStarted, onSignIn, theme, setTheme, fontSize, setFontSize }: { onGetStarted: () => void; onSignIn: () => void; theme: string; setTheme: (theme: string) => void; fontSize: FontSize; setFontSize: (size: FontSize) => void }) {
+  return <main className="landing-page">
+    <header className="landing-top"><Logo/><div className="landing-top-actions"><ThemeTools {...{ theme, setTheme, fontSize, setFontSize }}/><Button variant="secondary" onClick={onSignIn}>Sign in</Button></div></header>
+    <section className="landing-hero">
+      <div className="landing-hero-copy">
+        <Badge tone="teal">Care coordination for every barangay</Badge>
+        <h1>Better health starts with <em>being connected.</em></h1>
+        <p>CareLink brings community health screening, referrals, consultations, and personal health records into one trusted place, built for Filipino barangays and the people who serve them.</p>
+        <div className="landing-cta"><Button icon="arrow" onClick={onGetStarted}>Get started</Button><Button variant="secondary" onClick={onSignIn}>Sign in</Button></div>
+        <div className="landing-trust">
+          <span><Icon name="check" size={15}/>Works offline for barangay staff</span>
+          <span><Icon name="check" size={15}/>Consent-based record access</span>
+        </div>
+      </div>
+      <div className="landing-hero-art"><CareFlowVisual/></div>
+    </section>
+    <section className="landing-features">
+      {[["screening","Screen earlier","Barangay staff record check-ups and flag risk, even offline."],["referral","Coordinate referrals","Track a patient from the health center to the hospital and back."],["shield","Privacy by design","QR codes carry no personal data; records open only with consent."]].map(([icon, title, text]) => <Card key={title} className="landing-feature"><div className="landing-feature-icon"><Icon name={icon}/></div><h3>{title}</h3><p>{text}</p></Card>)}
+    </section>
+    <section className="landing-note">
+      <div className="prototype-note"><Icon name="shield"/><p><strong>Privacy-aligned demonstration (RA 10173 sandbox)</strong><br/>CareLink is a working prototype using fictional data. Authentication, data storage, screening rules, and audit logging run in demonstration mode and are not production services.</p></div>
+    </section>
+    <footer className="landing-footer"><span>CareLink · A screening and care-coordination aid, not a diagnostic system.</span><span>Demo data only · Intended timezone: Asia/Manila</span></footer>
+  </main>;
+}
+
+const REG_OPTIONS: { kind: RegKind; icon: string; label: string; blurb: string }[] = [
+  { kind: "patient", icon: "people", label: "Patient", blurb: "Keep your health card, screening results, prescriptions, and visit history in one place." },
+  { kind: "staff", icon: "home", label: "Barangay Staff", blurb: "Barangay health workers who screen residents and coordinate referrals. Access is provided by an administrator." },
+  { kind: "physician", icon: "consult", label: "Physician", blurb: "Licensed doctors who review records and issue prescriptions after PRC verification." },
+];
+
+function RoleSelect({ onPick, onBack, onSignIn, theme, setTheme, fontSize, setFontSize }: { onPick: (kind: RegKind) => void; onBack: () => void; onSignIn: () => void; theme: string; setTheme: (theme: string) => void; fontSize: FontSize; setFontSize: (size: FontSize) => void }) {
+  return <main className="auth-page role-select-page">
+    <div className="auth-top"><Logo/><ThemeTools {...{ theme, setTheme, fontSize, setFontSize }}/></div>
+    <div className="role-select-layout">
+      <div className="step-label">New to CareLink · Step 1 of 2</div>
+      <h1>Which of the following best describes you?</h1>
+      <p className="role-select-intro">Choose the option that fits you. You can change this later by signing out and starting again.</p>
+      <div className="role-select-list">
+        {REG_OPTIONS.map((option) => <button key={option.kind} className="role-select-card" onClick={() => onPick(option.kind)}><span className="role-select-icon"><Icon name={option.icon} size={24}/></span><span className="role-select-text"><strong>{option.label}</strong><small>{option.blurb}</small></span><Icon name="chevron"/></button>)}
+      </div>
+      <div className="role-select-foot"><Button variant="secondary" onClick={onBack}>Back</Button><span>Already have an account? <button type="button" className="text-button" onClick={onSignIn}>Sign in</button></span></div>
+    </div>
+    <footer className="auth-footer">CareLink · Demo data only · Intended timezone: Asia/Manila</footer>
+  </main>;
+}
+
+function Login({ onLogin, onRegister, onRegisterPhysician, onBack, theme, setTheme, fontSize, setFontSize }: { onLogin: (role: Role) => void; onRegister: () => void; onRegisterPhysician: () => void; onBack: () => void; theme: string; setTheme: (theme: string) => void; fontSize: FontSize; setFontSize: (size: FontSize) => void }) {
   const [selectedRole, setSelectedRole] = useState<Role>("citizen");
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState("");
@@ -141,14 +316,14 @@ function Login({ onLogin, onRegister, theme, setTheme, fontSize, setFontSize }: 
     onLogin(selectedRole);
   };
   return <main className="auth-page">
-    <div className="auth-top"><Logo/><ThemeTools {...{ theme, setTheme, fontSize, setFontSize }}/></div>
+    <div className="auth-top"><div className="auth-top-lead"><button type="button" className="icon-btn auth-back-btn" onClick={onBack} aria-label="Back to home"><Icon name="arrow" size={18}/></button><Logo/></div><ThemeTools {...{ theme, setTheme, fontSize, setFontSize }}/></div>
     <div className="auth-layout">
       <section className="auth-story">
         <Badge tone="teal">Care coordination for every barangay</Badge>
         <h1>Better health starts with <em>being connected.</em></h1>
         <p>One trusted place for screening, referrals, consultations, and personal health records—built for Filipino communities.</p>
         <div className="trust-row"><div><Icon name="shield"/><span><strong>Privacy first</strong><small>Access with consent</small></span></div><div><Icon name="home"/><span><strong>Community-led</strong><small>Closer to home</small></span></div></div>
-        <div className="prototype-note"><Icon name="shield"/><p><strong>Demonstration prototype</strong><br/>Uses fictional records only. No real authentication or secure data storage is implemented.</p></div>
+        <div className="prototype-note"><Icon name="shield"/><p><strong>RA 10173 Privacy-Aligned Sandbox</strong><br/>Authentication and Data Storage — Demonstration Environment. Fictional data only; no production credentials are verified.</p></div>
       </section>
       <Card className="login-card">
         <div className="eyebrow">Welcome to CareLink</div><h2>Sign in to continue</h2><p>Select a role for this prototype demonstration.</p>
@@ -162,27 +337,107 @@ function Login({ onLogin, onRegister, theme, setTheme, fontSize, setFontSize }: 
           <div className="form-meta"><label><input type="checkbox"/> Remember me</label><button type="button" className="text-button" onClick={() => alert("Password recovery is simulated in this prototype.")}>Forgot password?</button></div>
           <Button type="submit" className="full">Sign in securely</Button>
         </form>
-        <div className="register-links"><span>New to CareLink?</span><button onClick={() => onRegister("patient")}>Register as a patient</button><button onClick={() => onRegister("staff")}>Request staff access</button></div>
+        <div className="register-links"><span>New to CareLink?</span><button onClick={onRegister}>Get started</button><span className="register-sep" aria-hidden="true">·</span><button onClick={onRegisterPhysician}>Register as a physician</button></div>
       </Card>
     </div>
     <footer className="auth-footer">CareLink · Demo data only · Intended timezone: Asia/Manila</footer>
   </main>;
 }
 
-function Registration({ kind, onBack }: { kind: "patient" | "staff"; onBack: () => void }) {
+const REG_TITLES: Record<RegKind, string> = { patient: "Create your patient account", staff: "Barangay Staff access", physician: "Apply as a physician" };
+
+function Registration({ kind, onBack, onChangeRole }: { kind: RegKind; onBack: () => void; onChangeRole: () => void }) {
   const [submitted, setSubmitted] = useState(false);
   const [attempted, setAttempted] = useState(false);
   const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
   const [birthday, setBirthday] = useState("");
-  const submit = (event: FormEvent) => { event.preventDefault(); setAttempted(true); if (name && birthday) setSubmitted(true); };
-  if (submitted) return <main className="center-page"><Card className="success-card"><div className="success-icon"><Icon name="check" size={28}/></div><Badge tone="amber">Pending verification</Badge><h1>Thank you, {name.split(" ")[0]}.</h1><p>{kind === "patient" ? "Your account request was received. Please visit Barangay Maligaya Health Center with a valid ID so a Barangay Health Worker can verify your information." : "Your staff access request was recorded for this prototype. BHW accounts must be seeded and authorized by an administrator before access is granted."}</p><div className="notice"><Icon name="shield"/><span>No account has been automatically authorized. This is a simulated registration state.</span></div><Button onClick={onBack}>Return to login</Button></Card></main>;
-  return <main className="form-page"><div className="form-page-head"><Logo/><button className="text-button" onClick={onBack}>Return to login</button></div><Card className="registration-card"><div className="step-label">Account request · Step 1 of 1</div><h1>{kind === "patient" ? "Create your patient account" : "Request Barangay Staff access"}</h1><p>{kind === "patient" ? "Tell us about yourself. A Barangay Health Worker will verify your identity in person." : "Staff accounts are not activated through self-registration. This form demonstrates an access request only."}</p>
-    <form onSubmit={submit} className="form-grid">
-      <Field label="Full name *" placeholder="First, middle, and last name" value={name} onChange={setName} error={attempted && !name ? "Please enter your full name." : undefined}/>
-      {kind === "patient" ? <><Field label="Sex *"><select defaultValue=""><option value="" disabled>Select sex</option><option>Female</option><option>Male</option><option>Prefer not to say</option></select></Field><Field label="Birthday *" type="date" value={birthday} onChange={setBirthday} error={attempted && !birthday ? "Please select your birthday." : undefined}/><Field label="Height (optional)" placeholder="e.g. 160 cm"/><Field label="Weight (optional)" placeholder="e.g. 58 kg"/></> : <><Field label="Email or username *" type="email" placeholder="name@carelink.demo"/><Field label="Assigned barangay *"><select><option>Barangay Maligaya</option><option>Barangay San Roque</option></select></Field><Field label="Contact number" placeholder="09XX XXX XXXX"/><Field label="Birthday *" type="date" value={birthday} onChange={setBirthday} error={attempted && !birthday ? "Please select a date." : undefined}/></>}
-      <Field label="Password *" type="password" placeholder="At least 8 characters"/><Field label="Confirm password *" type="password" placeholder="Enter password again"/>
-      <label className="consent full-span"><input type="checkbox"/><span>I understand that this prototype uses mock data. In a real service, my information would be handled according to applicable privacy requirements.</span></label>
-      <div className="full-span form-actions"><Button variant="secondary" onClick={onBack}>Cancel</Button><Button type="submit">Submit account request</Button></div>
+  const [prc, setPrc] = useState("");
+  const [fileName, setFileName] = useState("");
+  const nameOk = !!name.trim();
+  const patientOk = nameOk && !!birthday;
+  const physicianOk = nameOk && !!email.trim() && !!prc.trim();
+  const [specialty, setSpecialty] = useState("");
+  const submit = (event: FormEvent) => {
+    event.preventDefault();
+    setAttempted(true);
+    if (kind === "patient" && patientOk) setSubmitted(true);
+    if (kind === "physician" && physicianOk) {
+      // Record a NEW application as strictly Pending with unverified documents.
+      // Nothing here marks it Approved/Verified — only an admin decision can.
+      const seq = String(physicianApplicationStore.getSnapshot().length + 20).padStart(3, "0");
+      physicianApplicationStore.add({
+        id: `DOC-2025-${seq}`,
+        name: name.trim().startsWith("Dr. ") ? name.trim() : `Dr. ${name.trim()}`,
+        email: email.trim(),
+        prc: prc.trim(),
+        prcStatus: "Submitted",
+        docs: fileName ? "Submitted" : "Missing",
+        date: new Date().toLocaleDateString("en-PH", { day: "2-digit", month: "short", year: "numeric", timeZone: "Asia/Manila" }),
+        status: "Pending",
+      });
+      setSubmitted(true);
+    }
+  };
+
+  const header = <div className="form-page-head"><Logo/><button className="text-button" onClick={onBack}><Icon name="arrow" size={16}/><span>Back</span></button></div>;
+
+  // Barangay Staff: invitation / seeded-account only — no public self-registration.
+  if (kind === "staff") {
+    return <main className="form-page">{header}<Card className="registration-card staff-invite-card">
+      <div className="success-icon info"><Icon name="shield" size={28}/></div>
+      <div className="step-label">New to CareLink · Step 2 of 2</div>
+      <h1>Barangay Staff access is by invitation</h1>
+      <p>Barangay health worker accounts are created and authorized by a CareLink administrator and bound to a single barangay. There is no public self-registration for staff.</p>
+      <div className="info-steps">
+        <div className="info-step"><span>1</span><div><strong>Ask your administrator</strong><small>Your Rural Health Unit or city health office requests an account for you.</small></div></div>
+        <div className="info-step"><span>2</span><div><strong>Account is seeded</strong><small>An administrator seeds your account and assigns your barangay.</small></div></div>
+        <div className="info-step"><span>3</span><div><strong>Sign in</strong><small>You receive a one-time activation and can sign in.</small></div></div>
+      </div>
+      <div className="notice"><Icon name="shield"/><span>This prototype does not create staff accounts. Contact an authorized administrator for access.</span></div>
+      <div className="form-actions"><Button variant="secondary" onClick={onChangeRole}>Choose a different role</Button><Button onClick={onBack}>Back to home</Button></div>
+    </Card></main>;
+  }
+
+  if (submitted) {
+    const firstName = name.trim().split(" ")[0] || "there";
+    return <main className="center-page"><Card className="success-card">
+      <div className="success-icon"><Icon name="check" size={28}/></div>
+      <Badge tone="amber">{kind === "physician" ? "Pending Admin PRC Verification" : "Pending verification"}</Badge>
+      <h1>Thank you, {firstName}.</h1>
+      <p>{kind === "patient"
+        ? "Your account request was received. Please visit your Barangay Health Center with a valid ID so a Barangay Health Worker can verify your information in person."
+        : "Your physician application was received. A CareLink administrator will verify your PRC license and supporting documents before your account is activated."}</p>
+      <div className="notice"><Icon name="shield"/><span>No account has been automatically authorized. This is a simulated registration state and is not saved to a real database.</span></div>
+      <div className="form-actions center"><Button onClick={onBack}>Return to home</Button></div>
+    </Card></main>;
+  }
+
+  return <main className="form-page">{header}<Card className="registration-card">
+    <div className="step-label">New to CareLink · Step 2 of 2 · <button type="button" className="text-button inline-link" onClick={onChangeRole}>Change role</button></div>
+    <h1>{REG_TITLES[kind]}</h1>
+    <p>{kind === "patient"
+      ? "Tell us about yourself. A Barangay Health Worker will verify your identity in person before your account is active."
+      : "Submit your professional details and PRC credentials. An administrator verifies them before activation."}</p>
+    <form onSubmit={submit} className="form-grid" noValidate>
+      <Field label="Full name *" placeholder="First, middle, and last name" value={name} onChange={setName} error={attempted && !nameOk ? "Please enter your full name." : undefined}/>
+      {kind === "patient" ? <>
+        <Field label="Sex *"><select defaultValue=""><option value="" disabled>Select sex</option><option>Female</option><option>Male</option><option>Prefer not to say</option></select></Field>
+        <Field label="Date of birth *" type="date" value={birthday} onChange={setBirthday} error={attempted && !birthday ? "Please select your date of birth." : undefined}/>
+        <Field label="Email or contact number *" placeholder="name@carelink.demo or 09XX XXX XXXX" value={email} onChange={setEmail}/>
+        <Field label="Password *" type="password" placeholder="At least 8 characters"/>
+        <Field label="Confirm password *" type="password" placeholder="Enter password again"/>
+      </> : <>
+        <Field label="Email *" type="email" placeholder="name@carelink.demo" value={email} onChange={setEmail} error={attempted && !email.trim() ? "Please enter your email." : undefined}/>
+        <Field label="PRC license number *" placeholder="e.g. 0123456" value={prc} onChange={setPrc} error={attempted && !prc.trim() ? "Please enter your PRC license number." : undefined}/>
+        <Field label="Medical specialty"><select value={specialty} onChange={(event) => setSpecialty(event.target.value)}><option value="" disabled>Select specialty</option><option>General / Family Medicine</option><option>Internal Medicine</option><option>Pediatrics</option><option>Obstetrics & Gynecology</option><option>Cardiology</option><option>Other</option></select></Field>
+        <Field label="Affiliated facility" placeholder="e.g. San Isidro District Hospital"/>
+        <Field label="Supporting credentials"><label className="file-field"><input type="file" className="sr-only" onChange={(event) => setFileName(event.target.files && event.target.files[0] ? event.target.files[0].name : "")}/><span className="file-field-btn"><Icon name="download" size={16}/>Upload document</span><span className="file-field-name">{fileName || "PRC ID or certificate (PDF, JPG, PNG)"}</span></label></Field>
+        <Field label="Password *" type="password" placeholder="At least 8 characters"/>
+        <Field label="Confirm password *" type="password" placeholder="Enter password again"/>
+      </>}
+      <label className="consent full-span"><input type="checkbox"/><span>I understand that this prototype uses mock data. In a real service, my information would be handled according to applicable privacy requirements (Data Privacy Act of 2012).</span></label>
+      <div className="full-span form-actions"><Button variant="secondary" onClick={onChangeRole}>Back</Button><Button type="submit">{kind === "physician" ? "Submit application" : "Submit account request"}</Button></div>
     </form>
   </Card></main>;
 }
@@ -219,14 +474,55 @@ function StaffDashboard({ go }: { go: (screen: string) => void }) {
   </>;
 }
 
+type Household = { id: string; purok: string; members: number; followUp: "Needs home visit" | "Follow-up scheduled" | "Up to date" };
+const HOUSEHOLDS: Household[] = [
+  { id: "HH-014", purok: "Purok 1", members: 4, followUp: "Up to date" },
+  { id: "HH-058", purok: "Purok 2", members: 6, followUp: "Needs home visit" },
+  { id: "HH-092", purok: "Purok 3", members: 3, followUp: "Follow-up scheduled" },
+];
+const followUpTone = (status: Household["followUp"]): Tone => status === "Needs home visit" ? "red" : status === "Follow-up scheduled" ? "amber" : "green";
+
+function Households({ go }: { go: (screen: string) => void }) {
+  const [loading, setLoading] = useState(true);
+  const [query, setQuery] = useState("");
+  useEffect(() => { const t = window.setTimeout(() => setLoading(false), 500); return () => window.clearTimeout(t); }, []);
+  const matches = HOUSEHOLDS.filter((h) => (h.id + h.purok).toLowerCase().includes(query.toLowerCase()));
+  const puroks = [...new Set(matches.map((h) => h.purok))].sort();
+
+  return <><PageHead eyebrow="Barangay Maligaya only" title="Households" text="Residents grouped by household and purok. Fictional demonstration data." actions={<Button icon="plus" onClick={() => go("add-patient")}>Add resident</Button>}/>
+    <Card><div className="filters"><label className="search-box"><Icon name="search"/><input placeholder="Search household ID or purok" value={query} onChange={(event) => setQuery(event.target.value)} aria-label="Search households"/></label></div>
+
+    {loading ? <div className="household-groups" aria-busy="true"><div className="household-group"><div className="household-group-head"><span className="skeleton-pill"></span></div><div className="household-cards">{[0,1].map((n) => <div key={n} className="household-card skeleton"><span className="skeleton-line w60"></span><span className="skeleton-line w40"></span><span className="skeleton-line w80"></span></div>)}</div></div></div>
+    : !matches.length ? <div className="empty"><Icon name="home" size={28}/><h3>No households found</h3><p>No households match this search. Try another household ID or purok.</p>{query && <Button variant="secondary" onClick={() => setQuery("")}>Clear search</Button>}</div>
+    : <div className="household-groups">{puroks.map((purok) => <section key={purok} className="household-group">
+        <div className="household-group-head"><h2>{purok}</h2><Badge tone="gray">{matches.filter((h) => h.purok === purok).length} households</Badge></div>
+        <div className="household-cards">{matches.filter((h) => h.purok === purok).map((h) => <Card key={h.id} className="household-card">
+          <div className="household-card-head"><div className="household-id"><span className="household-id-mark"><Icon name="home" size={18}/></span><div><strong>{h.id}</strong><small>{h.purok}</small></div></div><Badge tone={followUpTone(h.followUp)}>{h.followUp}</Badge></div>
+          <dl className="household-meta"><div><dt>Members</dt><dd>{h.members}</dd></div><div><dt>Follow-up</dt><dd>{h.followUp}</dd></div></dl>
+          <Button variant="secondary" className="full" icon="people" onClick={() => go("masterlist")}>View household</Button>
+        </Card>)}</div>
+      </section>)}</div>}
+    </Card></>;
+}
+
 function Masterlist({ go }: { go: (screen: string) => void }) {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState("All");
-  const filtered = patients.filter((patient) => (patient.name + patient.code).toLowerCase().includes(query.toLowerCase()) && (filter === "All" || patient.status === filter));
+  const [screeningFilter, setScreeningFilter] = useState("All");
+  const [householdFilter, setHouseholdFilter] = useState("All");
+  const filtered = patients.filter((patient) =>
+    (patient.name + patient.code).toLowerCase().includes(query.toLowerCase())
+    && (filter === "All" || patient.status === filter)
+    && (screeningFilter === "All" || patient.screening === screeningFilter)
+    && (householdFilter === "All" || patient.household.includes(householdFilter))
+  );
+  const filtersActive = query.trim() !== "" || filter !== "All" || screeningFilter !== "All" || householdFilter !== "All";
+  const clearFilters = () => { setQuery(""); setFilter("All"); setScreeningFilter("All"); setHouseholdFilter("All"); };
   return <><PageHead eyebrow="Barangay Maligaya only" title="Patient masterlist" text="Search, verify, and manage residents assigned to your barangay." actions={<><Button variant="secondary" icon="download" onClick={() => alert("CSV export simulated. In production, this action would require confirmation and be audit-logged.")}>Export</Button><Button icon="plus" onClick={() => go("add-patient")}>Add resident</Button></>}/>
-    <Card><div className="filters"><label className="search-box"><Icon name="search"/><input placeholder="Search name or patient code" value={query} onChange={(event) => setQuery(event.target.value)}/></label><select value={filter} onChange={(event) => setFilter(event.target.value)}><option>All</option><option>Verified</option><option>Pending</option></select><select><option>All screening outcomes</option><option>Normal</option><option>Monitor</option><option>Needs Referral</option></select><select><option>All households</option><option>Purok 1</option><option>Purok 2</option><option>Purok 3</option></select></div>
+    <Card><div className="filters"><label className="search-box"><Icon name="search"/><input placeholder="Search name or patient code" value={query} onChange={(event) => setQuery(event.target.value)} aria-label="Search name or patient code"/></label><select value={filter} onChange={(event) => setFilter(event.target.value)} aria-label="Filter by verification status"><option value="All">All verification</option><option value="Verified">Verified</option><option value="Pending">Pending</option></select><select value={screeningFilter} onChange={(event) => setScreeningFilter(event.target.value)} aria-label="Filter by screening outcome"><option value="All">All screening outcomes</option><option value="Normal">Normal</option><option value="Monitor">Monitor</option><option value="Needs Referral">Needs Referral</option></select><select value={householdFilter} onChange={(event) => setHouseholdFilter(event.target.value)} aria-label="Filter by household purok"><option value="All">All households</option><option value="Purok 1">Purok 1</option><option value="Purok 2">Purok 2</option><option value="Purok 3">Purok 3</option></select></div>
+      {filtersActive && <div className="filter-summary"><span>Showing <strong>{filtered.length}</strong> of {patients.length} residents</span><button type="button" className="text-button" onClick={clearFilters}>Clear filters</button></div>}
       <div className="patient-table"><div className="table-row table-header"><span>Patient</span><span>Household</span><span>Verification</span><span>Screening</span><span>Last visit</span><span></span></div>{filtered.map((patient) => <button className="table-row patient-row" onClick={() => go("patient-profile")} key={patient.code}><span className="patient-name"><i>{patient.name.split(" ").map((n) => n[0]).slice(0,2)}</i><b>{patient.name}<small>{patient.code}</small></b></span><span>{patient.household}</span><span><Badge tone={patient.status === "Verified" ? "green" : "amber"}>{patient.status}</Badge></span><span><Badge tone={patient.screening === "Normal" ? "green" : patient.screening === "Monitor" ? "amber" : "red"}>{patient.screening}</Badge></span><span>{patient.visit}</span><span><Icon name="chevron"/></span></button>)}</div>
-      {!filtered.length && <div className="empty"><Icon name="search" size={28}/><h3>No residents found</h3><p>Try another name, code, or filter.</p></div>}
+      {!filtered.length && <div className="empty"><Icon name="search" size={28}/><h3>No residents found</h3><p>No residents match the current search and filters.</p>{filtersActive && <Button variant="secondary" onClick={clearFilters}>Clear filters</Button>}</div>}
     </Card></>;
 }
 
@@ -241,14 +537,92 @@ function PatientProfile({ go }: { go: (screen: string) => void }) {
   </>;
 }
 
+type ScreeningOutcome = "Normal" | "Monitor" | "Needs Referral" | "Review Required";
+const OUTCOME_META: Record<ScreeningOutcome, { tone: Tone; icon: string; headline: string; blurb: string }> = {
+  "Normal": { tone: "green", icon: "check", headline: "Continue routine care", blurb: "No demonstration threshold was triggered." },
+  "Monitor": { tone: "amber", icon: "screening", headline: "Monitoring is recommended", blurb: "Review again at the next visit." },
+  "Needs Referral": { tone: "red", icon: "referral", headline: "A referral is recommended", blurb: "Continue to the referral workflow." },
+  "Review Required": { tone: "gray", icon: "record", headline: "Review required", blurb: "Readings are incomplete or fall outside the demonstration bands. A BHW should review before saving." },
+};
+const OUTCOME_RANK: Record<ScreeningOutcome, number> = { "Normal": 0, "Review Required": 1, "Monitor": 2, "Needs Referral": 3 };
+
+// Parses a numeric vital. Returns a number, "missing" (blank), or "invalid" (malformed/implausible).
+function parseVital(raw: string, lo: number, hi: number): number | "missing" | "invalid" {
+  const text = raw.trim();
+  if (!text) return "missing";
+  if (!/^\d{1,3}$/.test(text)) return "invalid";
+  const value = Number(text);
+  if (value < lo || value > hi) return "invalid";
+  return value;
+}
+
+type ScreeningInputs = { systolic: string; diastolic: string; sugar: string; concern: boolean };
+function computeScreening({ systolic, diastolic, sugar, concern }: ScreeningInputs): { outcome: ScreeningOutcome; reasons: string[] } {
+  const sys = parseVital(systolic, 60, 300);
+  const dia = parseVital(diastolic, 30, 200);
+  const bs = parseVital(sugar, 20, 800);
+  const reasons: string[] = [];
+  const triggered: ScreeningOutcome[] = [];
+
+  // Needs Referral (most urgent)
+  if (typeof sys === "number" && sys >= 180) { reasons.push(`Systolic ${sys} mmHg is at or above 180.`); triggered.push("Needs Referral"); }
+  if (typeof dia === "number" && dia >= 120) { reasons.push(`Diastolic ${dia} mmHg is at or above 120.`); triggered.push("Needs Referral"); }
+  if (typeof bs === "number" && bs >= 200) { reasons.push(`Blood sugar ${bs} mg/dL is at or above 200.`); triggered.push("Needs Referral"); }
+  if (concern) { reasons.push("A concern was reported."); triggered.push("Needs Referral"); }
+
+  // Monitor
+  if (typeof sys === "number" && sys >= 140 && sys <= 179) { reasons.push(`Systolic ${sys} mmHg is in the 140–179 monitor range.`); triggered.push("Monitor"); }
+  if (typeof dia === "number" && dia >= 90 && dia <= 119) { reasons.push(`Diastolic ${dia} mmHg is in the 90–119 monitor range.`); triggered.push("Monitor"); }
+  if (typeof bs === "number" && bs >= 140 && bs <= 199) { reasons.push(`Blood sugar ${bs} mg/dL is in the 140–199 monitor range.`); triggered.push("Monitor"); }
+
+  // Incomplete / malformed / implausible → Review Required (never assume Normal)
+  const fields: [string, number | "missing" | "invalid"][] = [["Systolic blood pressure", sys], ["Diastolic blood pressure", dia], ["Blood sugar", bs]];
+  for (const [label, parsed] of fields) {
+    if (parsed === "missing") { reasons.push(`${label} is missing.`); triggered.push("Review Required"); }
+    else if (parsed === "invalid") { reasons.push(`${label} is not a plausible value.`); triggered.push("Review Required"); }
+  }
+
+  // Threshold gaps: values that fall between the Normal ceiling and the Monitor floor.
+  if (typeof sys === "number" && sys >= 130 && sys <= 139) { reasons.push(`Systolic ${sys} mmHg falls in the 130–139 gap between Normal and Monitor.`); triggered.push("Review Required"); }
+  if (typeof dia === "number" && dia >= 85 && dia <= 89) { reasons.push(`Diastolic ${dia} mmHg falls in the 85–89 gap between Normal and Monitor.`); triggered.push("Review Required"); }
+
+  if (!triggered.length) {
+    // All three present, valid, and in the Normal band (BP below 130/85, sugar below 140).
+    return { outcome: "Normal", reasons: ["Blood pressure is below 130/85, blood sugar is below 140 mg/dL, and no concern was reported."] };
+  }
+  const outcome = triggered.reduce<ScreeningOutcome>((worst, next) => OUTCOME_RANK[next] > OUTCOME_RANK[worst] ? next : worst, triggered[0]);
+  return { outcome, reasons };
+}
+
 function Screening({ go }: { go: (screen: string) => void }) {
   const [saved, setSaved] = useState(false);
-  const [outcome, setOutcome] = useState("Monitor");
-  if (saved) return <><PageHead title="Screening saved" text="A demo screening result has been recorded for Rogelio Dela Cruz."/><Card className="result-card"><div className={`result-orb ${outcome === "Normal" ? "green" : outcome === "Monitor" ? "amber" : "red"}`}><Icon name={outcome === "Normal" ? "check" : "screening"} size={32}/></div><Badge tone={outcome === "Normal" ? "green" : outcome === "Monitor" ? "amber" : "red"}>{outcome}</Badge><h2>{outcome === "Normal" ? "Continue routine care" : outcome === "Monitor" ? "Monitoring is recommended" : "A referral is recommended"}</h2><p>This is a screening and care-coordination outcome, not a diagnosis. Clinical thresholds are not shown in this prototype.</p><div className="form-actions"><Button variant="secondary" onClick={() => {setSaved(false); go("masterlist")}}>Return to masterlist</Button>{outcome === "Needs Referral" && <Button icon="referral" onClick={() => go("referrals")}>Create referral</Button>}</div></Card></>;
-  return <><PageHead eyebrow="Demo screening" title="New health screening" text="Record observations and select the simulated outcome. CareLink does not provide a diagnosis."/>
+  const [systolic, setSystolic] = useState("");
+  const [diastolic, setDiastolic] = useState("");
+  const [sugar, setSugar] = useState("");
+  const [concern, setConcern] = useState(false);
+  const { outcome, reasons } = computeScreening({ systolic, diastolic, sugar, concern });
+  const meta = OUTCOME_META[outcome];
+  const canSave = outcome !== "Review Required";
+
+  if (saved) return <><PageHead title="Screening saved" text="A demonstration screening result has been recorded for Rogelio Dela Cruz."/><Card className="result-card"><div className={`result-orb ${meta.tone === "gray" ? "" : meta.tone}`}><Icon name={meta.icon} size={32}/></div><Badge tone={meta.tone}>{outcome}</Badge><h2>{meta.headline}</h2><p>This is a demonstration screening and care-coordination outcome, not a diagnosis. Thresholds are prototype rules, not validated DOH or WHO clinical guidance.</p><div className="form-actions center"><Button variant="secondary" onClick={() => {setSaved(false); go("masterlist")}}>Return to masterlist</Button>{outcome === "Needs Referral" && <Button icon="referral" onClick={() => go("referrals")}>Create referral</Button>}</div></Card></>;
+
+  return <><PageHead eyebrow="Demo screening" title="New health screening" text="Record observations. The demonstration outcome is calculated automatically for review; CareLink does not provide a diagnosis."/>
     <div className="screening-layout"><Card><h2>Resident and visit</h2><div className="form-grid"><Field label="Patient"><select><option>Rogelio Dela Cruz · CL-2025-0917</option><option>Maria Santos · CL-2025-0842</option></select></Field><Field label="Screening date" type="date" value="2025-06-25"/><Field label="Screening category"><select><option>Routine community screening</option><option>Follow-up screening</option></select></Field><Field label="Recorded by" value="Ana Reyes, BHW" /></div></Card>
-    <Card><h2>Sample observations</h2><p className="section-copy">Enter demo observations only. Reference thresholds are configured outside this prototype.</p><div className="form-grid thirds"><Field label="Blood pressure" placeholder="Sample: 128 / 84"/><Field label="Blood sugar" placeholder="Sample value"/><Field label="Weight" placeholder="Sample: 67 kg"/><Field label="Symptoms or concerns"><select><option>None reported</option><option>Concern reported</option></select></Field><Field label="Family history"><select><option>Not recorded</option><option>Reported by patient</option></select></Field><Field label="Follow-up needed"><select><option>To be reviewed</option><option>Yes</option><option>No</option></select></Field></div></Card>
-    <Card><h2>Demo screening outcome</h2><p className="section-copy">For prototype demonstration only; no clinical logic is being run.</p><div className="outcome-options">{["Normal","Monitor","Needs Referral"].map((item) => <button key={item} className={outcome === item ? "active" : ""} onClick={() => setOutcome(item)}><Badge tone={item === "Normal" ? "green" : item === "Monitor" ? "amber" : "red"}>{item}</Badge><small>{item === "Normal" ? "Continue routine care" : item === "Monitor" ? "Review at the next visit" : "Continue to referral workflow"}</small></button>)}</div><div className="form-actions"><Button variant="secondary" onClick={() => go("masterlist")}>Cancel</Button><Button onClick={() => setSaved(true)}>Save screening</Button></div></Card></div></>;
+    <Card><h2>Observations</h2><p className="section-copy">Enter demonstration readings. The outcome below recalculates as you type. Thresholds are prototype rules, not validated clinical guidance.</p>
+      <div className="form-grid thirds">
+        <Field label="Systolic BP (mmHg)" type="text" value={systolic} onChange={setSystolic} error={systolic.trim() && parseVital(systolic, 60, 300) === "invalid" ? "Enter a plausible value (60–300)." : undefined}/>
+        <Field label="Diastolic BP (mmHg)" type="text" value={diastolic} onChange={setDiastolic} error={diastolic.trim() && parseVital(diastolic, 30, 200) === "invalid" ? "Enter a plausible value (30–200)." : undefined}/>
+        <Field label="Blood sugar (mg/dL)" type="text" value={sugar} onChange={setSugar} error={sugar.trim() && parseVital(sugar, 20, 800) === "invalid" ? "Enter a plausible value (20–800)." : undefined}/>
+      </div>
+      <label className="toggle-row"><input type="checkbox" checked={concern} onChange={(event) => setConcern(event.target.checked)}/><span>Concern reported by patient or BHW</span></label>
+    </Card>
+    <Card className="outcome-card"><div className="card-head"><div><h2>Calculated outcome</h2><p className="section-copy">Deterministic Screening Rules — Demonstration. Illustrative screening categories, not a diagnosis or validated clinical rule set.</p></div><Badge tone={meta.tone}>{outcome}</Badge></div>
+      <div className="outcome-options" role="group" aria-label="Demonstration screening outcome">{(["Normal","Monitor","Needs Referral","Review Required"] as ScreeningOutcome[]).map((item) => <div key={item} className={outcome === item ? "outcome-pill active" : "outcome-pill"} aria-current={outcome === item ? "true" : undefined}><Badge tone={OUTCOME_META[item].tone}>{item}</Badge><small>{OUTCOME_META[item].blurb}</small></div>)}</div>
+      <div className={`outcome-reason tone-${meta.tone}`} role="status" aria-live="polite"><Icon name={meta.icon} size={18}/><div><strong>{meta.headline}</strong><ul>{reasons.map((reason) => <li key={reason}>{reason}</li>)}</ul></div></div>
+      <dl className="reading-recap"><div><dt>Blood pressure</dt><dd>{systolic.trim() || "—"} / {diastolic.trim() || "—"} mmHg</dd></div><div><dt>Blood sugar</dt><dd>{sugar.trim() ? `${sugar.trim()} mg/dL` : "—"}</dd></div><div><dt>Concern reported</dt><dd>{concern ? "Yes" : "No"}</dd></div></dl>
+      {!canSave && <div className="notice"><Icon name="shield"/><span>Resolve the items above before saving. Incomplete or out-of-band readings are not auto-classified as Normal.</span></div>}
+      <div className="form-actions"><Button variant="secondary" onClick={() => go("masterlist")}>Cancel</Button><Button disabled={!canSave} onClick={() => setSaved(true)}>Review &amp; save screening</Button></div>
+    </Card></div></>;
 }
 
 function ReferralPage() {
@@ -306,14 +680,77 @@ function DoctorDashboard({ go }: { go: (screen: string) => void }) {
   return <><PageHead eyebrow="Wednesday, 25 June 2025" title="Clinical workspace" text="Welcome back, Dr. Paolo Mendoza." actions={<Button icon="search" onClick={() => go("lookup")}>Find patient</Button>}/><div className="stats-grid"><Stat label="Today’s consultations" value="8" detail="3 remaining" icon="consult"/><Stat label="Pending follow-ups" value="6" detail="2 due today" icon="referral" tone="amber"/><Stat label="Active referrals" value="14" detail="4 new this week" icon="record" tone="teal"/><Stat label="Prescriptions issued" value="21" detail="This month" icon="rx" tone="green"/></div><div className="dashboard-grid"><Card><div className="card-head"><div><h2>Today’s consultations</h2><p>Wednesday, 25 June</p></div></div><div className="appointment-list">{[["9:00 AM","Lina Garcia","Follow-up"],["10:30 AM","Jose Villanueva","New referral"],["1:00 PM","Maria Santos","Follow-up"]].map((a) => <button key={a[0]} onClick={() => go("lookup")}><time>{a[0]}</time><span><strong>{a[1]}</strong><small>{a[2]}</small></span><Icon name="chevron"/></button>)}</div></Card><Card><div className="card-head"><div><h2>Quick patient lookup</h2><p>Protected access requires verification</p></div></div><div className="lookup-box"><Icon name="qr" size={30}/><h3>Scan a CareLink patient QR</h3><p>Scanning identifies the patient but does not open their medical record.</p><Button onClick={() => go("lookup")}>Start secure lookup</Button></div></Card></div></>;
 }
 
+type LookupStep = "lookup" | "pairing" | "confirm" | "access";
+const LOOKUP_STEPS: { key: LookupStep; label: string }[] = [
+  { key: "lookup", label: "Identify" },
+  { key: "pairing", label: "Pairing key" },
+  { key: "confirm", label: "Patient confirmation" },
+  { key: "access", label: "Access" },
+];
+
 function PatientLookup({ go }: { go: (screen: string) => void }) {
-  const [step, setStep] = useState<"lookup" | "pairing" | "invalid" | "success">("lookup");
+  const [step, setStep] = useState<LookupStep>("lookup");
   const [surname, setSurname] = useState("");
   const [birthdate, setBirthdate] = useState("");
-  if (step === "success") return <Card className="access-success"><div className="success-icon"><Icon name="shield"/></div><Badge tone="green">Access granted · 12-hour demo session</Badge><h1>Identity verified</h1><p>You may now view Maria Santos’s authorized record for this care event. This simulated access is shown as audit-logged.</p><Button icon="record" onClick={() => go("patient-record")}>Open authorized record</Button></Card>;
-  return <><PageHead title="Secure patient lookup" text="Identify the patient, then complete verification before protected information is shown."/><div className="secure-steps"><span className="done"><i>1</i>Identify</span><span className={step !== "lookup" ? "active" : ""}><i>2</i>Pairing key</span><span><i>3</i>Patient confirmation</span><span><i>4</i>Access</span></div>
-    {step === "lookup" ? <div className="lookup-options"><Card><Icon name="qr" size={34}/><h2>Scan patient QR</h2><p>Use the patient’s CareLink card. QR content contains no personal or medical information.</p><Button onClick={() => setStep("pairing")}>Simulate QR scan</Button></Card><Card><Icon name="search" size={34}/><h2>Enter patient code</h2><p>Manual lookup is rate-limited and still requires the pairing-key challenge.</p><Field label="Patient code" placeholder="CL-YYYY-0000"/><Button variant="secondary" onClick={() => setStep("pairing")}>Continue securely</Button></Card></div>
-    : <Card className="pairing-card"><div className="pairing-head"><span><Icon name="shield"/></span><div><Badge tone="blue">Patient identified</Badge><h2>Pairing key required</h2><p>Ask the patient to state their surname and birthdate. Do not write, print, or store the birthdate.</p></div></div><div className="identified"><span>Demo patient</span><strong>Maria S. · CL-2025-0842</strong></div><Field label="Patient surname" placeholder="Enter surname as stated" value={surname} onChange={setSurname}/><Field label="Birthdate in YYYYMMDD format" placeholder="YYYYMMDD" value={birthdate} onChange={setBirthdate} error={step === "invalid" ? "The pairing key did not match. Please check with the patient and try again." : undefined}/><div className="notice"><Icon name="shield"/><span>The record remains hidden until the pairing key is verified and the patient confirms access.</span></div><div className="form-actions"><Button variant="secondary" onClick={() => setStep("lookup")}>Cancel</Button><Button onClick={() => surname.toLowerCase() === "santos" && birthdate === "19680514" ? setStep("success") : setStep("invalid")}>Verify pairing key</Button></div><small className="demo-hint">Demo key: SANTOS · 19680514</small></Card>}</>;
+  const [error, setError] = useState("");
+  const [verifying, setVerifying] = useState(false);
+  const [patientConfirmed, setPatientConfirmed] = useState(false);
+  const stepIndex = LOOKUP_STEPS.findIndex((s) => s.key === step);
+
+  const verifyPairingKey = () => {
+    setError("");
+    if (!surname.trim() || !birthdate.trim()) { setError("Enter both the patient surname and birthdate to continue."); return; }
+    setVerifying(true);
+    // Simulated server verification (mock only — no real security).
+    window.setTimeout(() => {
+      setVerifying(false);
+      if (surname.trim().toLowerCase() === "santos" && birthdate.trim() === "19680514") {
+        setStep("confirm");
+      } else {
+        setError("The pairing key did not match. Please check with the patient and try again.");
+      }
+    }, 650);
+  };
+
+  const stepper = <ol className="secure-steps" aria-label="Secure patient lookup progress">
+    {LOOKUP_STEPS.map((s, i) => <li key={s.key} className={i < stepIndex ? "done" : i === stepIndex ? "active" : ""} aria-current={i === stepIndex ? "step" : undefined}><i>{i < stepIndex ? <Icon name="check" size={12}/> : i + 1}</i>{s.label}</li>)}
+  </ol>;
+
+  return <><PageHead title="Secure patient lookup" text="Identify the patient, then complete verification before protected information is shown."/>{stepper}
+
+    {step === "lookup" && <div className="lookup-options">
+      <Card><Icon name="qr" size={34}/><h2>Scan patient QR</h2><p>Use the patient’s CareLink card. QR content contains no personal or medical information.</p><Button onClick={() => { setError(""); setStep("pairing"); }}>Simulate QR scan</Button></Card>
+      <Card><Icon name="search" size={34}/><h2>Enter patient code</h2><p>Manual lookup is rate-limited and still requires the pairing-key challenge.</p><Field label="Patient code" placeholder="CL-YYYY-0000"/><Button variant="secondary" onClick={() => { setError(""); setStep("pairing"); }}>Continue securely</Button></Card>
+    </div>}
+
+    {step === "pairing" && <Card className="pairing-card">
+      <div className="pairing-head"><span><Icon name="shield"/></span><div><Badge tone="blue">Patient identified</Badge><h2>Pairing key required</h2><p>Ask the patient to state their surname and birthdate. Do not write, print, or store the birthdate.</p></div></div>
+      <div className="identified"><span>Demo patient</span><strong>Maria S. · CL-2025-0842</strong></div>
+      <Field label="Patient surname" placeholder="Enter surname as stated" value={surname} onChange={(value) => { setSurname(value); setError(""); }} error={error && !surname.trim() ? error : undefined}/>
+      <Field label="Birthdate in YYYYMMDD format" placeholder="YYYYMMDD" value={birthdate} onChange={(value) => { setBirthdate(value); setError(""); }} error={error ? error : undefined}/>
+      <div className="notice"><Icon name="shield"/><span>The record remains hidden until the pairing key is verified and the patient confirms access.</span></div>
+      <div className="form-actions"><Button variant="secondary" onClick={() => { setStep("lookup"); setError(""); }} disabled={verifying}>Cancel</Button><Button onClick={verifyPairingKey} disabled={verifying}>{verifying ? "Verifying…" : "Verify pairing key"}</Button></div>
+      <small className="demo-hint">Demo key: SANTOS · 19680514</small>
+    </Card>}
+
+    {step === "confirm" && <Card className="pairing-card confirm-card">
+      <div className="verified-banner"><Icon name="check"/><span><strong>Pairing key verified</strong><small>Surname and birthdate matched for Maria S. · CL-2025-0842</small></span><Badge tone="green">Verified</Badge></div>
+      <h2>Patient confirmation required</h2>
+      <p>Before the record opens, confirm the patient’s consent for this care event. In production this is a patient-side confirmation on their own device or an in-person acknowledgement.</p>
+      <div className="identified"><span>Opening record for</span><strong>Maria Santos · CL-2025-0842</strong></div>
+      <label className="consent"><input type="checkbox" checked={patientConfirmed} onChange={(event) => setPatientConfirmed(event.target.checked)}/><span>The patient is present and has confirmed access to their record for this consultation. This confirmation is simulated for the prototype.</span></label>
+      <div className="notice"><Icon name="shield"/><span>Access is limited to this care event and would be audit-logged. The pairing key is a demonstration check and does not provide real security.</span></div>
+      <div className="form-actions"><Button variant="secondary" onClick={() => { setStep("pairing"); setPatientConfirmed(false); }}>Back</Button><Button disabled={!patientConfirmed} onClick={() => setStep("access")}>Continue to access</Button></div>
+    </Card>}
+
+    {step === "access" && <Card className="access-success">
+      <div className="success-icon"><Icon name="shield"/></div>
+      <Badge tone="green">Access granted · 12-hour demo session</Badge>
+      <h1>Identity verified</h1>
+      <p>Pairing key verified and patient confirmation recorded. You may now view Maria Santos’s authorized record for this care event. This simulated access is shown as audit-logged.</p>
+      <div className="form-actions center"><Button variant="secondary" onClick={() => { setStep("lookup"); setSurname(""); setBirthdate(""); setPatientConfirmed(false); setError(""); }}>Start over</Button><Button icon="record" onClick={() => go("patient-record")}>Open Maria Santos&apos;s Record</Button></div>
+    </Card>}
+  </>;
 }
 
 function DoctorRecord({ go }: { go: (screen: string) => void }) {
@@ -326,49 +763,348 @@ function Consultation({ go }: { go: (screen: string) => void }) {
 }
 
 function AdminOverview({ go }: { go: (screen: string) => void }) {
-  return <><div className="admin-banner"><Icon name="shield"/><span><strong>Authenticated administrator session</strong><small>Aggregate data access · Asia/Manila</small></span></div><PageHead eyebrow="System administration" title="CareLink overview" text="Aggregate system activity across participating barangays."/><div className="stats-grid"><Stat label="Registered patients" value="18,420" detail="+4.8% this quarter" icon="people"/><Stat label="Active BHW accounts" value="146" detail="32 barangays" icon="home" tone="teal"/><Stat label="Approved physicians" value="78" detail="4 pending review" icon="consult" tone="green"/><Stat label="Total screenings" value="12,608" detail="January–June 2025" icon="screening" tone="amber"/></div><div className="dashboard-grid"><Card><div className="card-head"><div><h2>System activity</h2><p>Last 6 months · aggregate events</p></div><button className="text-button" onClick={() => go("statistics")}>View statistics</button></div><div className="bar-chart">{[42,55,48,68,75,86].map((h, i) => <div key={i}><span style={{height:`${h}%`}}></span><small>{["Jan","Feb","Mar","Apr","May","Jun"][i]}</small></div>)}</div></Card><Card><div className="card-head"><div><h2>Administrative queue</h2><p>Permitted account actions only</p></div></div><div className="task-list"><button onClick={() => go("approvals")}><span className="task-icon"><Icon name="approve"/></span><span><strong>Physician applications</strong><small>4 pending review</small></span><Badge tone="amber">4</Badge></button><button onClick={() => go("accounts")}><span className="task-icon"><Icon name="people"/></span><span><strong>BHW account requests</strong><small>2 ready to seed</small></span><Badge tone="blue">2</Badge></button><button onClick={() => go("audit")}><span className="task-icon"><Icon name="shield"/></span><span><strong>Audit events</strong><small>1,248 events today</small></span><Icon name="chevron"/></button></div></Card></div><div className="disclaimer"><Icon name="shield"/><p><strong>Restricted administrator role.</strong> Administrators can view aggregate information, reports, pseudonymized audit events, physician approvals, and permitted BHW account seeding. They cannot edit patient medical records.</p></div></>;
-}
-
-function Statistics() {
-  return <><PageHead title="System statistics" text="Aggregate, non-identifying trends for public health administration." actions={<select className="head-select"><option>January–June 2025</option><option>Last 30 days</option></select>}/><div className="dashboard-grid"><Card><h2>Registration trends</h2><div className="bar-chart large">{[35,45,52,60,73,82].map((h, i) => <div key={i}><span style={{height:`${h}%`}}></span><small>{["Jan","Feb","Mar","Apr","May","Jun"][i]}</small></div>)}</div></Card><Card><h2>Screening outcomes</h2><div className="donut-wrap"><div className="donut"></div><div className="chart-legend"><span><i className="green"></i>Normal <b>68%</b></span><span><i className="amber"></i>Monitor <b>22%</b></span><span><i className="red"></i>Needs Referral <b>10%</b></span></div></div></Card></div><Card><h2>Barangay-level totals</h2><div className="mini-table"><div className="table-row table-header"><span>Barangay</span><span>Registered</span><span>Screened</span><span>Referrals</span><span>Follow-up rate</span></div>{[["Maligaya","1,284","1,032","84","82%"],["San Roque","1,096","864","62","79%"],["Mabini","978","801","55","85%"],["Pag-asa","862","710","47","76%"]].map((r) => <div className="table-row" key={r[0]}>{r.map(c => <span key={c}>{c}</span>)}</div>)}</div></Card></>;
+  return <><div className="admin-banner"><Icon name="shield"/><span><strong>Administrator session — Demonstration Environment</strong><small>Aggregate data access · Asia/Manila · Audit Logging — Demonstration Mode</small></span></div><PageHead eyebrow="System administration" title="CareLink overview" text="Aggregate system activity across participating barangays. Figures are fictional prototype data."/>
+    <div className="stats-grid admin-stats-grid"><Stat label="Registered patients" value="18,420" detail="Across all barangays" icon="people"/><Stat label="Barangay staff" value="146" detail="Active accounts" icon="home" tone="teal"/><Stat label="Approved physicians" value="78" detail="Verified by admin" icon="consult" tone="green"/><Stat label="Pending applications" value="4" detail="Awaiting review" icon="approve" tone="amber"/><Stat label="Total barangays" value="32" detail="Participating" icon="dashboard" tone="blue"/></div>
+    <div className="dashboard-grid"><Card><div className="card-head"><div><h2>System activity</h2><p>Last 6 months · aggregate events only</p></div><button className="text-button" onClick={() => go("reports")}>View reports</button></div><div className="bar-chart">{[42,55,48,68,75,86].map((h, i) => <div key={i}><span style={{height:`${h}%`}}></span><small>{["Jan","Feb","Mar","Apr","May","Jun"][i]}</small></div>)}</div></Card>
+    <Card><div className="card-head"><div><h2>Administrative queue</h2><p>Permitted account actions only</p></div></div><div className="task-list"><button onClick={() => go("applications")}><span className="task-icon"><Icon name="approve"/></span><span><strong>Physician applications</strong><small>4 pending review</small></span><Badge tone="amber">4</Badge></button><button onClick={() => go("staff")}><span className="task-icon"><Icon name="people"/></span><span><strong>Barangay staff requests</strong><small>2 ready to seed</small></span><Badge tone="blue">2</Badge></button><button onClick={() => go("audit")}><span className="task-icon"><Icon name="shield"/></span><span><strong>Audit events</strong><small>1,248 events today</small></span><Icon name="chevron"/></button></div></Card></div>
+    <Card><div className="card-head"><div><h2>Recent system activity</h2><p>Pseudonymized events · no patient names or medical details</p></div><button className="text-button" onClick={() => go("audit")}>Open audit logs</button></div><div className="mini-table audit-table"><div className="table-row table-header"><span>UserID</span><span>Role</span><span>Action</span><span>Timestamp</span><span>Result</span></div>{[["USR-ADM-004","Administrator","doctor_approved","25 Jun · 9:56","Success"],["USR-BHW-047","Barangay Staff","bhw_seeded","25 Jun · 9:40","Success"],["USR-DOC-218","Physician","sign_in","25 Jun · 9:12","Success"],["USR-ADM-004","Administrator","report_export","24 Jun · 16:30","Success"]].map((e) => <div className="table-row" key={e[0]+e[2]}><span><code>{e[0]}</code></span><span>{e[1]}</span><span><Badge tone="blue">{e[2]}</Badge></span><span>{e[3]}</span><span><Badge tone="green">{e[4]}</Badge></span></div>)}</div></Card>
+    <div className="disclaimer"><Icon name="shield"/><p><strong>Restricted administrator role.</strong> Administrators view aggregate information, reports, pseudonymized audit events, physician approvals, and permitted barangay staff seeding. They cannot open or edit patient medical records.</p></div></>;
 }
 
 function AdminReports() {
   const [preview, setPreview] = useState(false);
-  return <><PageHead title="Generate aggregate report" text="Create privacy-conscious reports suitable for government health administration."/><div className="report-layout"><Card><h2>Report settings</h2><Field label="Report type"><select><option>Monthly screening coverage</option><option>Referral outcomes</option><option>Registration summary</option></select></Field><div className="form-grid"><Field label="Start date" type="date" value="2025-06-01"/><Field label="End date" type="date" value="2025-06-30"/></div><Field label="Barangay"><select><option>All participating barangays</option><option>Barangay Maligaya</option></select></Field><div className="notice"><Icon name="shield"/><span>This report contains aggregate totals only. Patient names and clinical information are excluded.</span></div><Button className="full" onClick={() => setPreview(true)}>Generate preview</Button></Card>{preview ? <Card className="report-preview"><div className="report-paper"><Logo/><span>MONTHLY SCREENING COVERAGE</span><h2>June 2025</h2><div className="report-kpis"><div><strong>2,148</strong><small>Residents screened</small></div><div><strong>78%</strong><small>Household coverage</small></div><div><strong>186</strong><small>Referrals sent</small></div></div><div className="fake-lines"><i></i><i></i><i></i><i></i></div><small>Generated from fictional prototype data · Asia/Manila</small></div><Button icon="download" onClick={() => alert("Aggregate report export simulated.")}>Export / print report</Button></Card> : <Card className="empty-preview"><Icon name="report" size={34}/><h2>Report preview</h2><p>Choose your filters and generate a preview. No personally identifiable information will appear.</p></Card>}</div></>;
+  const [range, setRange] = useState("Jan–Jun 2025");
+  const barangays = [["Maligaya","1,284","1,032","84","82%"],["San Roque","1,096","864","62","79%"],["Mabini","978","801","55","85%"],["Pag-asa","862","710","47","76%"]];
+  return <><PageHead eyebrow="System reports" title="Aggregate reports" text="Privacy-conscious, non-identifying summaries for public health administration." actions={<label className="field head-field"><span className="sr-only">Date range</span><select className="head-select" value={range} onChange={(event) => setRange(event.target.value)}><option>Jan–Jun 2025</option><option>Last 30 days</option><option>Last 12 months</option></select></label>}/>
+    <div className="stats-grid admin-report-kpis"><Stat label="Patient registrations" value="18,420" detail={range} icon="people"/><Stat label="Screenings completed" value="12,608" detail="Normal / Monitor / Referral" icon="screening" tone="amber"/><Stat label="Referrals sent" value="1,186" detail="Across 32 barangays" icon="referral" tone="teal"/><Stat label="Follow-up rate" value="81%" detail="Seen within 14 days" icon="consult" tone="green"/></div>
+    <div className="dashboard-grid"><Card><h2>Registration trend</h2><p className="section-copy">Aggregate new registrations by month.</p><div className="bar-chart large">{[35,45,52,60,73,82].map((h, i) => <div key={i}><span style={{height:`${h}%`}}></span><small>{["Jan","Feb","Mar","Apr","May","Jun"][i]}</small></div>)}</div></Card>
+    <Card><h2>Screening outcomes</h2><p className="section-copy">Outcomes are screening categories, never a diagnosis.</p><div className="donut-wrap"><div className="donut"></div><div className="chart-legend"><span><i className="green"></i>Normal <b>68%</b></span><span><i className="amber"></i>Monitor <b>22%</b></span><span><i className="red"></i>Needs Referral <b>10%</b></span></div></div></Card></div>
+    <Card><div className="card-head"><div><h2>Barangay-level summary</h2><p>Aggregate totals per barangay · no personal data</p></div></div><div className="mini-table report-table"><div className="table-row table-header"><span>Barangay</span><span>Registered</span><span>Screened</span><span>Referrals</span><span>Follow-up rate</span></div>{barangays.map((r) => <div className="table-row" key={r[0]}>{r.map((c, i) => <span key={c}>{i === 0 ? <strong>{c}</strong> : c}</span>)}</div>)}</div></Card>
+    <div className="report-layout"><Card><h2>Generate report</h2><Field label="Report type"><select><option>Monthly screening coverage</option><option>Referral outcomes</option><option>Registration summary</option></select></Field><div className="form-grid"><Field label="Start date" type="date" value="2025-06-01"/><Field label="End date" type="date" value="2025-06-30"/></div><Field label="Barangay"><select><option>All participating barangays</option><option>Barangay Maligaya</option><option>Barangay San Roque</option></select></Field><div className="notice"><Icon name="shield"/><span>Reports contain aggregate totals only. Patient names and clinical information are excluded.</span></div><Button className="full" onClick={() => setPreview(true)}>Generate preview</Button></Card>
+    {preview ? <Card className="report-preview"><div className="report-paper"><Logo/><span>MONTHLY SCREENING COVERAGE</span><h2>June 2025</h2><div className="report-kpis"><div><strong>2,148</strong><small>Residents screened</small></div><div><strong>78%</strong><small>Household coverage</small></div><div><strong>186</strong><small>Referrals sent</small></div></div><div className="fake-lines"><i></i><i></i><i></i><i></i></div><small>Generated from fictional prototype data · Asia/Manila</small></div><Button icon="download" onClick={() => alert("Prototype only: aggregate report export is simulated and not written to any database.")}>Export / print report</Button></Card> : <Card className="empty-preview"><Icon name="report" size={34}/><h2>Report preview</h2><p>Choose your filters and generate a preview. No personally identifiable information will appear.</p></Card>}</div></>;
+}
+
+type ApplicationStatus = "Pending" | "Approved" | "Rejected";
+type DocStatus = "Verified" | "Submitted" | "Missing";
+type ApplicationRow = { id: string; name: string; email: string; prc: string; prcStatus: DocStatus; docs: DocStatus; date: string; status: ApplicationStatus };
+const docTone = (status: DocStatus): Tone => status === "Verified" ? "green" : status === "Submitted" ? "amber" : "red";
+const appTone = (status: ApplicationStatus): Tone => status === "Approved" ? "green" : status === "Rejected" ? "red" : "amber";
+
+// Shared in-memory mock store for physician applications. Lets a submitted
+// physician registration appear in the Admin approvals screen within the same
+// session. This is NOT persistence: it lives in memory only and resets on reload.
+const physicianApplicationStore: {
+  rows: ApplicationRow[];
+  listeners: Set<() => void>;
+  getSnapshot(): ApplicationRow[];
+  subscribe(listener: () => void): () => void;
+  emit(): void;
+  add(row: ApplicationRow): void;
+  setStatus(id: string, status: ApplicationStatus): void;
+} = {
+  rows: [
+    { id: "DOC-2025-014", name: "Dr. Paolo Mendoza", email: "p.mendoza@example.demo", prc: "DEMO-48291", prcStatus: "Verified", docs: "Verified", date: "23 Jun 2025", status: "Pending" },
+    { id: "DOC-2025-016", name: "Dr. Celine Favis", email: "c.favis@example.demo", prc: "DEMO-50122", prcStatus: "Submitted", docs: "Submitted", date: "24 Jun 2025", status: "Pending" },
+    { id: "DOC-2025-012", name: "Dr. Noel Agbuya", email: "n.agbuya@example.demo", prc: "DEMO-47710", prcStatus: "Verified", docs: "Verified", date: "20 Jun 2025", status: "Approved" },
+    { id: "DOC-2025-009", name: "Dr. Rhea Lim", email: "r.lim@example.demo", prc: "DEMO-46088", prcStatus: "Missing", docs: "Missing", date: "18 Jun 2025", status: "Rejected" },
+  ],
+  listeners: new Set(),
+  getSnapshot() { return this.rows; },
+  subscribe(listener) { this.listeners.add(listener); return () => { this.listeners.delete(listener); }; },
+  emit() { this.rows = [...this.rows]; this.listeners.forEach((listener) => listener()); },
+  add(row) { this.rows = [row, ...this.rows]; this.listeners.forEach((listener) => listener()); },
+  setStatus(id, status) { this.rows = this.rows.map((row) => row.id === id ? { ...row, status } : row); this.listeners.forEach((listener) => listener()); },
+};
+
+function usePhysicianApplications() {
+  const [, force] = useState(0);
+  useEffect(() => physicianApplicationStore.subscribe(() => force((n) => n + 1)), []);
+  return physicianApplicationStore.getSnapshot();
+}
+
+function PhysicianApplications() {
+  const rows = usePhysicianApplications();
+  const [filter, setFilter] = useState<"All" | ApplicationStatus>("All");
+  const [selected, setSelected] = useState<ApplicationRow | null>(null);
+  const [confirm, setConfirm] = useState<{ row: ApplicationRow; action: ApplicationStatus } | null>(null);
+  const visible = rows.filter((row) => filter === "All" || row.status === filter);
+  const applyDecision = () => {
+    if (!confirm) return;
+    physicianApplicationStore.setStatus(confirm.row.id, confirm.action);
+    if (selected && selected.id === confirm.row.id) setSelected({ ...selected, status: confirm.action });
+    setConfirm(null);
+  };
+  return <><PageHead eyebrow="Account administration" title="Physician applications" text="Review PRC ID and supporting documents before activating a physician account."/>
+    <Card><div className="filters"><label className="field"><span>Status</span><select value={filter} onChange={(event) => setFilter(event.target.value as "All" | ApplicationStatus)}><option>All</option><option>Pending</option><option>Approved</option><option>Rejected</option></select></label></div>
+      <div className="mini-table applications-table"><div className="table-row table-header"><span>Applicant</span><span>Application date</span><span>PRC ID</span><span>Documents</span><span>Status</span><span>Actions</span></div>{visible.map((row) => <div className="table-row" key={row.id}><span className="applicant-cell"><b>{row.name}</b><small>{row.id}</small></span><span>{row.date}</span><span><Badge tone={docTone(row.prcStatus)}>{row.prcStatus}</Badge></span><span><Badge tone={docTone(row.docs)}>{row.docs}</Badge></span><span><Badge tone={appTone(row.status)}>{row.status}</Badge></span><span className="row-actions"><Button variant="secondary" onClick={() => setSelected(row)}>View</Button>{row.status === "Pending" && <><Button onClick={() => setConfirm({ row, action: "Approved" })}>Approve</Button><Button variant="danger" onClick={() => setConfirm({ row, action: "Rejected" })}>Reject</Button></>}</span></div>)}{!visible.length && <div className="empty"><Icon name="approve" size={28}/><h3>No applications</h3><p>No applications match this status.</p></div>}</div>
+    </Card>
+    {selected && <Modal title="Physician application" onClose={() => setSelected(null)} actions={selected.status === "Pending" ? <><Button variant="danger" onClick={() => setConfirm({ row: selected, action: "Rejected" })}>Reject</Button><Button onClick={() => setConfirm({ row: selected, action: "Approved" })}>Approve</Button></> : <Button variant="secondary" onClick={() => setSelected(null)}>Close</Button>}>
+      <div className="applicant"><span>{selected.name.replace("Dr. ", "").split(" ").map((n) => n[0]).slice(0,2).join("")}</span><div><h2>{selected.name}</h2><p>{selected.email}</p></div></div>
+      <dl className="detail-dl"><div><dt>Application ID</dt><dd>{selected.id}</dd></div><div><dt>PRC ID</dt><dd>{selected.prc} <Badge tone={docTone(selected.prcStatus)}>{selected.prcStatus}</Badge></dd></div><div><dt>Supporting documents</dt><dd><Badge tone={docTone(selected.docs)}>{selected.docs}</Badge></dd></div><div><dt>Application date</dt><dd>{selected.date}</dd></div><div><dt>Current status</dt><dd><Badge tone={appTone(selected.status)}>{selected.status}</Badge></dd></div></dl>
+      <div className="notice"><Icon name="shield"/><span>Verification documents are stored in a private, admin-only area. Approval does not grant access to patient medical records.</span></div>
+    </Modal>}
+    {confirm && <Modal title={confirm.action === "Approved" ? "Approve this application?" : "Reject this application?"} onClose={() => setConfirm(null)} actions={<><Button variant="secondary" onClick={() => setConfirm(null)}>Cancel</Button><Button variant={confirm.action === "Approved" ? "primary" : "danger"} onClick={applyDecision}>{confirm.action === "Approved" ? "Confirm approval" : "Confirm rejection"}</Button></>}><p>{confirm.action === "Approved" ? `This activates ${confirm.row.name}'s CareLink physician account.` : `This rejects ${confirm.row.name}'s application. They would be notified to resubmit.`} This is a prototype action and is not saved to a real database. In production it would be audit-logged.</p></Modal>}
+  </>;
+}
+
+type StaffStatus = "Active" | "Inactive";
+type StaffRow = { id: string; name: string; barangay: string; contact: string; status: StaffStatus; added: string };
+const BARANGAYS = ["Barangay Maligaya", "Barangay San Roque", "Barangay Mabini", "Barangay Pag-asa"];
+
+function StaffManagement() {
+  const [rows, setRows] = useState<StaffRow[]>([
+    { id: "BHW-047", name: "Ana Reyes", barangay: "Barangay Maligaya", contact: "0917 555 0147", status: "Active", added: "12 Mar 2025" },
+    { id: "BHW-051", name: "Mario Santos", barangay: "Barangay San Roque", contact: "0918 555 0151", status: "Active", added: "02 Apr 2025" },
+    { id: "BHW-058", name: "Liza Tan", barangay: "Barangay Mabini", contact: "0919 555 0158", status: "Inactive", added: "19 May 2025" },
+    { id: "BHW-063", name: "Ramon Cruz", barangay: "Barangay Pag-asa", contact: "0920 555 0163", status: "Active", added: "08 Jun 2025" },
+  ]);
+  const [query, setQuery] = useState("");
+  const [barangay, setBarangay] = useState("All");
+  const [statusFilter, setStatusFilter] = useState("All");
+  const [seedOpen, setSeedOpen] = useState(false);
+  const [toggle, setToggle] = useState<StaffRow | null>(null);
+  const [toast, setToast] = useState("");
+  // Seed form state
+  const [sName, setSName] = useState("");
+  const [sBarangay, setSBarangay] = useState("");
+  const [sContact, setSContact] = useState("");
+  const [sPassword, setSPassword] = useState("");
+  const [sAttempted, setSAttempted] = useState(false);
+  const [sDone, setSDone] = useState(false);
+  const resetSeedForm = () => { setSName(""); setSBarangay(""); setSContact(""); setSPassword(""); setSAttempted(false); setSDone(false); };
+  const closeSeed = () => { setSeedOpen(false); resetSeedForm(); };
+  const seedValid = sName.trim() !== "" && sBarangay !== "" && sContact.trim() !== "" && sPassword.trim().length >= 8;
+  const submitSeed = () => { setSAttempted(true); if (seedValid) setSDone(true); };
+
+  const visible = rows.filter((row) => (row.name + row.id + row.barangay + row.contact).toLowerCase().includes(query.toLowerCase()) && (barangay === "All" || row.barangay === barangay) && (statusFilter === "All" || row.status === statusFilter));
+  const confirmToggle = () => {
+    if (!toggle) return;
+    const next: StaffStatus = toggle.status === "Active" ? "Inactive" : "Active";
+    setRows((prev) => prev.map((row) => row.id === toggle.id ? { ...row, status: next } : row));
+    setToast(`${toggle.name} marked ${next.toLowerCase()} (prototype only).`);
+    setToggle(null);
+  };
+  return <><PageHead eyebrow="Account administration" title="Barangay staff management" text="Barangay health worker accounts are seeded by admin and bound to one barangay." actions={<Button icon="plus" onClick={() => { resetSeedForm(); setSeedOpen(true); }}>Seed BHW account</Button>}/>
+    <Card><div className="filters"><label className="search-box"><Icon name="search"/><input placeholder="Search name, ID, barangay, or contact" value={query} onChange={(event) => setQuery(event.target.value)} aria-label="Search barangay staff"/></label><label className="field"><span className="sr-only">Barangay</span><select value={barangay} onChange={(event) => setBarangay(event.target.value)} aria-label="Filter by barangay"><option>All</option>{BARANGAYS.map((b) => <option key={b}>{b}</option>)}</select></label><label className="field"><span className="sr-only">Status</span><select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} aria-label="Filter by account status"><option>All</option><option>Active</option><option>Inactive</option></select></label></div>
+      <div className="mini-table staff-table"><div className="table-row table-header"><span>Staff name</span><span>Assigned barangay</span><span>Contact number</span><span>Status</span><span>Date created</span><span>Actions</span></div>{visible.map((row) => <div className="table-row" key={row.id}><span className="applicant-cell"><b>{row.name}</b><small>{row.id}</small></span><span>{row.barangay}</span><span>{row.contact}</span><span><Badge tone={row.status === "Active" ? "green" : "gray"}>{row.status}</Badge></span><span>{row.added}</span><span className="row-actions"><Button variant={row.status === "Active" ? "danger" : "secondary"} onClick={() => setToggle(row)}>{row.status === "Active" ? "Deactivate" : "Activate"}</Button></span></div>)}{!visible.length && <div className="empty"><Icon name="people" size={28}/><h3>No BHW accounts found</h3><p>No accounts match the current search and filters.</p>{(query || barangay !== "All" || statusFilter !== "All") && <Button variant="secondary" onClick={() => { setQuery(""); setBarangay("All"); setStatusFilter("All"); }}>Clear filters</Button>}</div>}</div>
+    </Card>
+
+    {seedOpen && <Modal title="Seed Barangay Health Worker account" onClose={closeSeed} actions={sDone
+      ? <Button onClick={closeSeed}>Close</Button>
+      : <><Button variant="secondary" onClick={closeSeed}>Cancel</Button><Button onClick={submitSeed}>Seed account</Button></>}>
+      {sDone ? <div className="seed-result">
+        <div className="success-icon info"><Icon name="shield" size={26}/></div>
+        <Badge tone="amber">Prototype — not saved</Badge>
+        <h2>Account seeding simulated</h2>
+        <p>In production this would create a one-time activation for <strong>{sName.trim()}</strong> at <strong>{sBarangay}</strong>, bound to that barangay and audit-logged. No account was created and nothing was saved to a database in this prototype.</p>
+      </div> : <>
+        <div className="form-grid">
+          <Field label="Full name *" placeholder="First, middle, last name" value={sName} onChange={(v) => setSName(v)} error={sAttempted && !sName.trim() ? "Please enter the full name." : undefined}/>
+          <Field label="Assigned barangay *" error={sAttempted && !sBarangay ? "Please select a barangay." : undefined}><select value={sBarangay} onChange={(event) => setSBarangay(event.target.value)}><option value="" disabled>Select barangay</option>{BARANGAYS.map((b) => <option key={b}>{b}</option>)}</select></Field>
+          <Field label="Contact number *" placeholder="09XX XXX XXXX" value={sContact} onChange={(v) => setSContact(v)} error={sAttempted && !sContact.trim() ? "Please enter a contact number." : undefined}/>
+          <Field label="Temporary password *" type="password" placeholder="At least 8 characters" value={sPassword} onChange={(v) => setSPassword(v)} error={sAttempted && sPassword.trim().length < 8 ? "Use at least 8 characters." : undefined}/>
+        </div>
+        <div className="notice"><Icon name="shield"/><span>BHW accounts are bound to one barangay and never self-registered. This is a prototype action and is not saved to a real database.</span></div>
+      </>}
+    </Modal>}
+    {toggle && <Modal title={toggle.status === "Active" ? "Deactivate this account?" : "Activate this account?"} onClose={() => setToggle(null)} actions={<><Button variant="secondary" onClick={() => setToggle(null)}>Cancel</Button><Button variant={toggle.status === "Active" ? "danger" : "primary"} onClick={confirmToggle}>{toggle.status === "Active" ? "Confirm deactivate" : "Confirm activate"}</Button></>}><p>{toggle.status === "Active" ? `${toggle.name} would lose access to ${toggle.barangay} until reactivated.` : `${toggle.name} would regain access to ${toggle.barangay}.`} Prototype action, not saved to a real database.</p></Modal>}
+    {toast && <div className="toast granted"><Icon name="check"/><span><strong>Prototype action</strong><small>{toast}</small></span><button onClick={() => setToast("")} aria-label="Dismiss"><Icon name="close"/></button></div>}
+  </>;
+}
+
+// Save button + visible prototype confirmation. Other preferences on the settings
+// pages are illustrative (not persisted). Appearance now lives in Quick Settings.
+function SaveBar({ saved, onSave }: { saved: boolean; onSave: () => void }) {
+  return <div className="settings-save"><div className="settings-save-note" role="status" aria-live="polite">{saved ? <span className="save-ok"><Icon name="check" size={16}/>Preferences updated for this session. These preferences are illustrative and not stored on a server.</span> : <span>Changes apply on this device. This prototype does not save to a server.</span>}</div><Button icon="check" onClick={onSave}>Save changes</Button></div>;
+}
+
+function PatientSettings() {
+  const [saved, setSaved] = useState(false);
+  return <><PageHead eyebrow="My account" title="Profile & Settings" text="Manage your CareLink profile and preferences. Appearance and text size now live in Quick Settings in the top bar. Demonstration data only."/>
+    <div className="settings-grid">
+      <Card><h2>Personal profile</h2><p className="section-copy">Shown to your care team. Verified in person by a Barangay Health Worker.</p>
+        <div className="form-grid"><Field label="Full name" value="Maria Santos"/><Field label="Sex"><select defaultValue="Female"><option>Female</option><option>Male</option><option>Prefer not to say</option></select></Field><Field label="Date of birth" type="date" value="1968-05-14"/><Field label="Household"><select defaultValue="HH-041 · Purok 3"><option>HH-041 · Purok 3</option></select></Field></div>
+      </Card>
+      <Card><h2>Contact information</h2><p className="section-copy">Used for appointment and follow-up reminders.</p>
+        <div className="form-grid"><Field label="Contact number" placeholder="09XX XXX XXXX" value="0917 555 0842"/><Field label="Email" type="email" placeholder="name@carelink.demo" value="maria.santos@carelink.demo"/><Field label="Address" value="Purok 3, Barangay Maligaya"/></div>
+      </Card>
+      <Card><h2>Account information</h2><p className="section-copy">Managed by CareLink. Identity is verified in person by a BHW.</p>
+        <dl className="detail-dl"><div><dt>Patient code</dt><dd>CL-2025-0842</dd></div><div><dt>Verification status</dt><dd><Badge tone="green">Verified</Badge></dd></div><div><dt>Barangay</dt><dd>Barangay Maligaya</dd></div><div><dt>Member since</dt><dd>12 Mar 2025</dd></div></dl>
+      </Card>
+      <Card><h2>Notifications</h2><p className="section-copy">How you would like to be reminded (illustrative only).</p>
+        <label className="toggle-row"><input type="checkbox" defaultChecked/><span>Follow-up and appointment reminders</span></label>
+        <label className="toggle-row"><input type="checkbox" defaultChecked/><span>Notify me when my record is accessed</span></label>
+        <label className="toggle-row"><input type="checkbox"/><span>SMS reminders (demo)</span></label>
+      </Card>
+      <Card><h2>Privacy & consent</h2><p className="section-copy">Control how your record may be accessed. Pairing-key confirmation always applies.</p>
+        <label className="toggle-row"><input type="checkbox" defaultChecked/><span>Require my confirmation before a physician opens my record</span></label>
+        <label className="toggle-row"><input type="checkbox" defaultChecked/><span>Show me who viewed my record</span></label>
+        <label className="toggle-row"><input type="checkbox"/><span>Allow Barangay Health Workers to print my health card on request</span></label>
+      </Card>
+      <Card><h2>Interface preferences</h2><p className="section-copy">Illustrative preferences for this prototype.</p>
+        <Field label="Preferred language"><select defaultValue="English"><option>English</option><option>Filipino</option></select></Field>
+        <Field label="Default landing page"><select defaultValue="Home"><option>Home</option><option>My Health Card</option><option>Medical Record</option></select></Field>
+      </Card>
+    </div>
+    <SaveBar saved={saved} onSave={() => setSaved(true)}/>
+  </>;
+}
+
+function BhwSettings() {
+  const [saved, setSaved] = useState(false);
+  return <><PageHead eyebrow="My account" title="Profile & Settings" text="Manage your Barangay Health Worker profile and preferences. Appearance and text size now live in Quick Settings in the top bar. Demonstration data only."/>
+    <div className="settings-grid">
+      <Card><h2>Profile information</h2><p className="section-copy">Your account is seeded by an administrator and bound to one barangay.</p>
+        <dl className="detail-dl"><div><dt>Full name</dt><dd>Ana Reyes</dd></div><div><dt>Role</dt><dd>Barangay Health Worker</dd></div><div><dt>Assigned barangay</dt><dd>Barangay Maligaya</dd></div><div><dt>Contact number</dt><dd>0917 555 0147</dd></div><div><dt>Account status</dt><dd><Badge tone="green">Active</Badge></dd></div></dl>
+      </Card>
+      <Card><h2>Notifications</h2><p className="section-copy">Illustrative reminder preferences.</p>
+        <label className="toggle-row"><input type="checkbox" defaultChecked/><span>Missed follow-up / home-visit alerts</span></label>
+        <label className="toggle-row"><input type="checkbox" defaultChecked/><span>New referral status updates</span></label>
+        <label className="toggle-row"><input type="checkbox"/><span>Daily screening summary (demo)</span></label>
+      </Card>
+      <Card><h2>Interface preferences</h2><p className="section-copy">Illustrative preferences for this prototype.</p>
+        <Field label="Table density"><select defaultValue="Comfortable"><option>Comfortable</option><option>Compact</option></select></Field>
+        <Field label="Default landing page"><select defaultValue="Dashboard"><option>Dashboard</option><option>Patient Masterlist</option><option>Households</option></select></Field>
+        <label className="toggle-row"><input type="checkbox" defaultChecked/><span>Show prototype notices and disclaimers</span></label>
+      </Card>
+    </div>
+    <SaveBar saved={saved} onSave={() => setSaved(true)}/>
+  </>;
+}
+
+function PhysicianSettings() {
+  const [saved, setSaved] = useState(false);
+  return <><PageHead eyebrow="My account" title="Profile & Settings" text="Manage your physician profile and preferences. Appearance and text size now live in Quick Settings in the top bar. Demonstration data only."/>
+    <div className="settings-grid">
+      <Card><h2>Profile information</h2><p className="section-copy">Verified by an administrator from your PRC credentials.</p>
+        <dl className="detail-dl"><div><dt>Full name</dt><dd>Dr. Paolo Mendoza</dd></div><div><dt>Specialty</dt><dd>Internal Medicine</dd></div><div><dt>Affiliated facility</dt><dd>San Isidro District Hospital</dd></div><div><dt>Account status</dt><dd><Badge tone="green">Verified</Badge></dd></div></dl>
+      </Card>
+      <Card><h2>Notifications</h2><p className="section-copy">Illustrative reminder preferences.</p>
+        <label className="toggle-row"><input type="checkbox" defaultChecked/><span>New referrals to my facility</span></label>
+        <label className="toggle-row"><input type="checkbox" defaultChecked/><span>Prescription status updates</span></label>
+        <label className="toggle-row"><input type="checkbox"/><span>Daily consultation summary (demo)</span></label>
+      </Card>
+      <Card><h2>Privacy & session</h2><p className="section-copy">Record access always requires a pairing-key challenge and patient confirmation.</p>
+        <Field label="Auto sign-out after inactivity"><select defaultValue="15 minutes"><option>5 minutes</option><option>15 minutes</option><option>30 minutes</option></select></Field>
+        <label className="toggle-row"><input type="checkbox" defaultChecked/><span>Require pairing key on every record open</span></label>
+        <label className="toggle-row"><input type="checkbox" defaultChecked/><span>Wipe cached session data on sign-out</span></label>
+      </Card>
+      <Card><h2>Interface preferences</h2><p className="section-copy">Illustrative preferences for this prototype.</p>
+        <Field label="Default landing page"><select defaultValue="Dashboard"><option>Dashboard</option><option>Patient Lookup</option><option>Referrals</option></select></Field>
+      </Card>
+    </div>
+    <SaveBar saved={saved} onSave={() => setSaved(true)}/>
+  </>;
+}
+
+function AdminSettings() {
+  const [tableDensity, setTableDensity] = useState("Comfortable");
+  const [landing, setLanding] = useState("Overview");
+  return <><PageHead eyebrow="Administrator preferences" title="Settings" text="Interface preferences for this prototype. Appearance and text size now live in Quick Settings in the top bar. Changes apply to your device only."/>
+    <div className="settings-grid">
+    <Card><h2>Interface preferences</h2><p className="section-copy">Prototype preferences. Not saved to a real database.</p>
+      <Field label="Table density"><select value={tableDensity} onChange={(event) => setTableDensity(event.target.value)}><option>Comfortable</option><option>Compact</option></select></Field>
+      <Field label="Default landing page"><select value={landing} onChange={(event) => setLanding(event.target.value)}><option>Overview</option><option>Physician Applications</option><option>System Reports</option></select></Field>
+      <label className="toggle-row"><input type="checkbox" defaultChecked/><span>Show prototype notices and disclaimers</span></label>
+    </Card></div>
+    <div className="disclaimer"><Icon name="shield"/><p><strong>Prototype settings.</strong> Interface preferences here are illustrative only and are not stored on a server. Light/Dark theme and text size are available in Quick Settings in the top bar and persist in this browser.</p></div>
+  </>;
 }
 
 function AuditLogs() {
   const [role, setRole] = useState("All roles");
   const events = [["USR-DOC-218","Physician","record_view","25 Jun 2025 · 10:42"],["USR-BHW-047","Barangay Staff","citizen_verified","25 Jun 2025 · 10:18"],["USR-ADM-004","Administrator","doctor_approved","25 Jun 2025 · 9:56"],["USR-CIT-842","Patient","rx_view","25 Jun 2025 · 9:22"]];
-  return <><PageHead title="Audit logs" text="Pseudonymized system events. Patient names and medical details are not displayed."/><Card><div className="filters"><Field label="From"><input type="date" defaultValue="2025-06-25"/></Field><Field label="To"><input type="date" defaultValue="2025-06-25"/></Field><label className="field"><span>Role</span><select value={role} onChange={(e) => setRole(e.target.value)}><option>All roles</option><option>Physician</option><option>Barangay Staff</option><option>Administrator</option><option>Patient</option></select></label></div><div className="mini-table audit-table"><div className="table-row table-header"><span>UserID</span><span>Role</span><span>Action</span><span>Timestamp</span><span>Event detail</span></div>{events.filter(e => role === "All roles" || e[1] === role).map((e) => <div className="table-row" key={e[0]+e[2]}><span><code>{e[0]}</code></span><span>{e[1]}</span><span><Badge tone="blue">{e[2]}</Badge></span><span>{e[3]}</span><span>Authorized system event · View details</span></div>)}</div></Card></>;
-}
-
-function Approvals() {
-  const [modal, setModal] = useState(false);
-  const [approved, setApproved] = useState(false);
-  return <><PageHead title="Physician approval" text="Review identity and supporting-document status before account activation."/><Card><div className="approval-card"><div className="applicant"><span>DM</span><div><h2>Applicant DOC-2025-014</h2><p>doctor.mendoza@example.demo</p></div></div><Badge tone={approved ? "green" : "amber"}>{approved ? "Approved" : "Pending review"}</Badge><dl><div><dt>PRC ID</dt><dd>DEMO-48291</dd></div><div><dt>Application date</dt><dd>23 June 2025</dd></div><div><dt>Supporting documents</dt><dd><Badge tone="green">Review complete</Badge></dd></div></dl>{!approved && <div className="form-actions"><Button variant="danger">Reject</Button><Button onClick={() => setModal(true)}>Approve physician</Button></div>}</div></Card>{modal && <Modal title="Approve physician application?" onClose={() => setModal(false)} actions={<><Button variant="secondary" onClick={() => setModal(false)}>Cancel</Button><Button onClick={() => {setApproved(true);setModal(false)}}>Confirm approval</Button></>}><p>This activates the physician’s CareLink account. The approval action will be represented in the audit log.</p></Modal>}</>;
+  return <><PageHead title="Audit logs" text="Audit Logging — Demonstration Mode. Pseudonymized sample events; patient names and medical details are not displayed."/><Card><div className="filters"><Field label="From"><input type="date" defaultValue="2025-06-25"/></Field><Field label="To"><input type="date" defaultValue="2025-06-25"/></Field><label className="field"><span>Role</span><select value={role} onChange={(e) => setRole(e.target.value)}><option>All roles</option><option>Physician</option><option>Barangay Staff</option><option>Administrator</option><option>Patient</option></select></label></div><div className="mini-table audit-table"><div className="table-row table-header"><span>UserID</span><span>Role</span><span>Action</span><span>Timestamp</span><span>Event detail</span></div>{events.filter(e => role === "All roles" || e[1] === role).map((e) => <div className="table-row" key={e[0]+e[2]}><span><code>{e[0]}</code></span><span>{e[1]}</span><span><Badge tone="blue">{e[2]}</Badge></span><span>{e[3]}</span><span>Authorized system event · View details</span></div>)}</div></Card></>;
 }
 
 function GenericPage({ screen, role }: { screen: string; role: Role }) {
-  const labels: Record<string, string> = { households: "Households", "add-patient": "Add a resident", reports: "Reports", settings: "Profile & Settings", accounts: "BHW Account Management" };
+  const labels: Record<string, string> = { households: "Households", "add-patient": "Add a resident", reports: "Reports", settings: "Profile & Settings" };
   const title = labels[screen] || nav[role].find(n => n.id === screen)?.label || "CareLink";
   if (screen === "add-patient") return <><PageHead title="Create account for a resident" text="For Barangay Maligaya residents who have not registered themselves."/><Card className="generic-form"><div className="notice"><Icon name="people"/><span>Check the masterlist for duplicates before creating an account. The patient code is assigned by the server in a production system.</span></div><div className="form-grid"><Field label="Full name *" placeholder="First, middle, last name"/><Field label="Sex *"><select><option>Female</option><option>Male</option></select></Field><Field label="Birthday *" type="date"/><Field label="Household *"><select><option>HH-058 · Purok 2</option><option>Create new household</option></select></Field><Field label="Contact number" placeholder="09XX XXX XXXX"/><Field label="Temporary claim method"><select><option>One-time claim code</option></select></Field></div><div className="form-actions"><Button variant="secondary">Cancel</Button><Button>Create resident account</Button></div></Card></>;
   return <><PageHead title={title} text={`${roleMeta[role].label} workspace · interactive prototype`}/><Card className="empty-preview"><Icon name={screen === "settings" ? "settings" : "report"} size={34}/><h2>{title}</h2><p>This supporting workspace is represented in the connected CareLink prototype. Use the main navigation to explore the primary demonstration flows.</p><Button variant="secondary">View demo state</Button></Card></>;
 }
 
-function AppShell({ role, screen, setScreen, logout, theme, setTheme, fontSize, setFontSize }: { role: Role; screen: string; setScreen: (screen: string) => void; logout: () => void; theme: string; setTheme: (theme: string) => void; fontSize: FontSize; setFontSize: (size: FontSize) => void }) {
+// Prototype-only mock administrator credentials. This is NOT real authentication
+// and provides NO security: the check runs entirely in the browser and the values
+// ship in the client bundle. Real admin auth would be verified server-side (see tech.md).
+const MOCK_ADMIN = { email: "admin@carelink.demo", password: "carelink-admin" };
+
+function AdminLogin({ onAuthenticated, onExit, theme, setTheme, fontSize, setFontSize }: { onAuthenticated: () => void; onExit: () => void; theme: string; setTheme: (theme: string) => void; fontSize: FontSize; setFontSize: (size: FontSize) => void }) {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [remember, setRemember] = useState(false);
+  const [attempted, setAttempted] = useState(false);
+  const [authError, setAuthError] = useState(false);
+  const emailError = attempted && !email.trim() ? "Please enter your administrator email." : undefined;
+  const passwordError = attempted && !password ? "Please enter your password." : undefined;
+  const submit = (event: FormEvent) => {
+    event.preventDefault();
+    setAttempted(true);
+    setAuthError(false);
+    if (!email.trim() || !password) return;
+    if (email.trim().toLowerCase() === MOCK_ADMIN.email && password === MOCK_ADMIN.password) {
+      onAuthenticated();
+    } else {
+      setAuthError(true);
+    }
+  };
+  return <main className="auth-page admin-auth-page">
+    <div className="auth-top"><Logo/><ThemeTools {...{ theme, setTheme, fontSize, setFontSize }}/></div>
+    <div className="admin-auth-layout">
+      <Card className="admin-login-card">
+        <div className="admin-login-head"><span className="admin-login-mark"><Icon name="shield" size={26}/></span><div><div className="eyebrow">CareLink System Administration</div><h1>Administrator sign-in</h1></div></div>
+        <p className="admin-login-intro">Restricted access for authorized CareLink administrators. All administrator activity is audit-logged.</p>
+        <div className="prototype-note" role="note"><Icon name="shield"/><p><strong>Prototype authentication</strong><br/>This sign-in uses a mock account for demonstration only and provides no real security. Credentials are not verified by a server.</p></div>
+        <form onSubmit={submit} noValidate>
+          <Field label="Administrator email" type="email" placeholder="name@carelink.demo" value={email} onChange={(value) => { setEmail(value); setAuthError(false); }} error={emailError}/>
+          <Field label="Password" error={passwordError}><div className="password-wrap"><input type={showPassword ? "text" : "password"} placeholder="Enter your password" value={password} onChange={(event) => { setPassword(event.target.value); setAuthError(false); }} aria-invalid={!!passwordError || authError} autoComplete="current-password"/><button type="button" onClick={() => setShowPassword(!showPassword)} aria-label={showPassword ? "Hide password" : "Show password"} aria-pressed={showPassword}><Icon name="eye"/></button></div></Field>
+          {authError && <div className="auth-alert" role="alert"><Icon name="close" size={16}/><span>Those administrator credentials were not recognized. Please try again.</span></div>}
+          <div className="form-meta"><label><input type="checkbox" checked={remember} onChange={(event) => setRemember(event.target.checked)}/> Remember this device</label></div>
+          <Button type="submit" className="full">Sign in to admin console</Button>
+        </form>
+        <button type="button" className="text-button admin-login-back" onClick={onExit}><Icon name="arrow" size={16}/><span>Return to CareLink sign-in</span></button>
+        <small className="demo-hint">Demo account: admin@carelink.demo · carelink-admin</small>
+      </Card>
+    </div>
+    <footer className="auth-footer">CareLink · System administration · Demo data only · Intended timezone: Asia/Manila</footer>
+  </main>;
+}
+
+const SWITCH_ROLES: { role: Role; label: string }[] = [
+  { role: "citizen", label: "Citizen — Maria Santos" },
+  { role: "barangay_staff", label: "BHW — Ana Reyes" },
+  { role: "physician", label: "Physician — Dr. Paolo Mendoza" },
+  { role: "admin", label: "System Admin" },
+];
+
+function RoleSwitcher({ role, onSwitchRole }: { role: Role; onSwitchRole: (role: Role) => void }) {
+  return <div className="role-switcher" title="Demonstration role switcher — not a real authorization control">
+    <Icon name="people" size={16}/>
+    <label className="role-switcher-label" htmlFor="role-switcher-select">Demo role</label>
+    <select id="role-switcher-select" aria-label="Switch demonstration role" value={role} onChange={(event) => onSwitchRole(event.target.value as Role)}>
+      {SWITCH_ROLES.map((option) => <option key={option.role} value={option.role}>{option.label}</option>)}
+    </select>
+  </div>;
+}
+
+function AppShell({ role, screen, setScreen, logout, onSwitchRole, appearance }: { role: Role; screen: string; setScreen: (screen: string) => void; logout: () => void; onSwitchRole: (role: Role) => void; appearance: Appearance }) {
   const [menuOpen, setMenuOpen] = useState(false);
+  // Demonstration-only connectivity toggle for Barangay Staff. Mock behavior:
+  // it does not perform real offline persistence or server synchronization.
+  const [online, setOnline] = useState(true);
   const title = nav[role].find((item) => item.id === screen)?.label || "Patient Profile";
   const initials = role === "citizen" ? "MS" : role === "barangay_staff" ? "AR" : role === "physician" ? "PM" : "SA";
   const render = () => {
     if (role === "barangay_staff") {
       if (screen === "dashboard") return <StaffDashboard go={setScreen}/>;
       if (screen === "masterlist") return <Masterlist go={setScreen}/>;
+      if (screen === "households") return <Households go={setScreen}/>;
       if (screen === "patient-profile") return <PatientProfile go={setScreen}/>;
       if (screen === "screening") return <Screening go={setScreen}/>;
       if (screen === "referrals") return <ReferralPage/>;
       if (screen === "id-cards") return <HealthCard/>;
+      if (screen === "settings") return <BhwSettings/>;
     }
     if (role === "citizen") {
       if (screen === "home") return <PatientHome go={setScreen}/>;
@@ -377,6 +1113,7 @@ function AppShell({ role, screen, setScreen, logout, theme, setTheme, fontSize, 
       if (screen === "prescriptions") return <Prescription/>;
       if (screen === "notes") return <Notes/>;
       if (screen === "access") return <AccessHistory/>;
+      if (screen === "settings") return <PatientSettings/>;
     }
     if (role === "physician") {
       if (screen === "dashboard") return <DoctorDashboard go={setScreen}/>;
@@ -386,42 +1123,97 @@ function AppShell({ role, screen, setScreen, logout, theme, setTheme, fontSize, 
       if (screen === "notes") return <Notes doctor/>;
       if (screen === "prescriptions") return <Prescription doctor/>;
       if (screen === "referrals") return <ReferralPage/>;
+      if (screen === "settings") return <PhysicianSettings/>;
     }
     if (role === "admin") {
       if (screen === "overview") return <AdminOverview go={setScreen}/>;
-      if (screen === "statistics") return <Statistics/>;
+      if (screen === "applications") return <PhysicianApplications/>;
+      if (screen === "staff") return <StaffManagement/>;
       if (screen === "reports") return <AdminReports/>;
       if (screen === "audit") return <AuditLogs/>;
-      if (screen === "approvals") return <Approvals/>;
+      if (screen === "settings") return <AdminSettings/>;
     }
     return <GenericPage screen={screen} role={role}/>;
   };
-  const importantNav = nav[role].slice(0, role === "citizen" ? 4 : 5);
   return <div className={`app-shell role-${role}`}>
-    <aside className={menuOpen ? "sidebar open" : "sidebar"}><div className="sidebar-brand"><Logo/><button className="mobile-close" onClick={() => setMenuOpen(false)}><Icon name="close"/></button></div><div className="role-chip"><span>{initials}</span><div><strong>{role === "citizen" ? "Maria Santos" : role === "barangay_staff" ? "Ana Reyes" : role === "physician" ? "Dr. Paolo Mendoza" : "System Admin"}</strong><small>{roleMeta[role].subtitle}</small></div></div><nav>{nav[role].map((item) => <button key={item.id} className={screen === item.id ? "active" : ""} onClick={() => {setScreen(item.id);setMenuOpen(false)}}><Icon name={item.icon}/><span>{item.label}</span>{screen === item.id && <i></i>}</button>)}</nav><div className="sidebar-foot"><div className="sync-status"><i></i><span><strong>{role === "barangay_staff" ? "All changes synced" : "Secure demo session"}</strong><small>{role === "barangay_staff" ? "Updated just now" : "Prototype only"}</small></span></div><button onClick={logout}><Icon name="logout"/><span>Sign out</span></button></div></aside>
+    <aside className={menuOpen ? "sidebar open" : "sidebar"}><div className="sidebar-brand"><Logo/><button className="mobile-close" onClick={() => setMenuOpen(false)}><Icon name="close"/></button></div><div className="role-chip"><span>{initials}</span><div><strong>{role === "citizen" ? "Maria Santos" : role === "barangay_staff" ? "Ana Reyes" : role === "physician" ? "Dr. Paolo Mendoza" : "System Admin"}</strong><small>{roleMeta[role].subtitle}</small></div></div><nav>{nav[role].map((item) => <button key={item.id} className={screen === item.id ? "active" : ""} onClick={() => {setScreen(item.id);setMenuOpen(false)}}><Icon name={item.icon}/><span>{item.label}</span>{screen === item.id && <i></i>}</button>)}</nav><div className="sidebar-foot">{role === "barangay_staff" ? <button type="button" className={online ? "sync-status sync-toggle" : "sync-status sync-toggle offline"} onClick={() => setOnline((v) => !v)} aria-pressed={!online} title="Demonstration connectivity toggle — mock sync only"><i></i><span><strong>{online ? "Online · All changes synced" : "Offline Mode · 2 screenings queued locally"}</strong><small>{online ? "Tap to simulate going offline" : "Tap to simulate reconnecting · demo only"}</small></span></button> : <div className="sync-status"><i></i><span><strong>Secure demo session</strong><small>Prototype only</small></span></div>}<button onClick={logout}><Icon name="logout"/><span>Sign out</span></button></div></aside>
     {menuOpen && <div className="drawer-shade" onClick={() => setMenuOpen(false)}></div>}
-    <div className="app-main"><header className="topbar"><div><button className="menu-button" onClick={() => setMenuOpen(true)}><Icon name="menu"/></button><span className="mobile-title">{title}</span></div><div className="top-actions"><ThemeTools {...{theme,setTheme,fontSize,setFontSize}}/><button className="icon-btn notification" aria-label="Notifications"><Icon name="bell"/><i></i></button><button className="user-menu"><span>{initials}</span><div><strong>{roleMeta[role].label}</strong><small>View profile</small></div></button></div></header><main className="content">{render()}</main></div>
-    <nav className="bottom-nav">{importantNav.map((item) => <button key={item.id} className={screen === item.id ? "active" : ""} onClick={() => setScreen(item.id)}><Icon name={item.icon}/><span>{item.label.split(" ")[0]}</span></button>)}<button onClick={() => setMenuOpen(true)}><Icon name="menu"/><span>More</span></button></nav>
+    <QuickSettings appearance={appearance}/>
+    <div className="app-main"><header className="topbar"><div><button className="menu-button" onClick={() => setMenuOpen(true)} aria-label="Open navigation menu"><Icon name="menu"/></button><span className="mobile-title">{title}</span></div><div className="top-actions"><RoleSwitcher role={role} onSwitchRole={onSwitchRole}/><span className="prototype-pill" title="Demonstration prototype using fictional data">Prototype · Demo data</span><button className="icon-btn notification" aria-label="Notifications"><Icon name="bell"/><i></i></button><button className="user-menu"><span>{initials}</span><div><strong>{roleMeta[role].label}</strong><small>View profile</small></div></button></div></header>{role === "barangay_staff" && !online && <div className="offline-banner" role="status"><Icon name="shield" size={16}/><span><strong>Offline Mode (demonstration)</strong> · 2 screenings queued locally. Mock sync only — no data is actually stored offline or sent to a server.</span></div>}<main className="content">{render()}</main></div>
   </div>;
 }
 
+// Hidden, path-only admin entry. Reuses the app's existing pathname-based navigation
+// (no router dependency). Admin is never surfaced in the public role selector or any
+// ordinary navigation; it is reachable only by visiting these paths directly.
+type AdminRoute = "login" | "dashboard" | null;
+function readAdminRoute(): AdminRoute {
+  const path = window.location.pathname.replace(/\/+$/, "");
+  if (path === "/admin/login") return "login";
+  if (path === "/admin/dashboard") return "dashboard";
+  if (path === "/admin" || path === "/admin-demo") return "login";
+  return null;
+}
+
 export default function App() {
-  const [view, setView] = useState<"login" | "register">("login");
-  const [registerKind, setRegisterKind] = useState<"patient" | "staff">("patient");
+  const [view, setView] = useState<"landing" | "role-select" | "login" | "register">("landing");
+  const [registerKind, setRegisterKind] = useState<RegKind>("patient");
   const [role, setRole] = useState<Role | null>(null);
   const [screen, setScreen] = useState("home");
+  const [adminRoute, setAdminRoute] = useState<AdminRoute>(() => readAdminRoute());
+  const [adminAuthed, setAdminAuthed] = useState(false);
   const [theme, setTheme] = useState(localStorage.getItem("carelink-theme") || "light");
   const [fontSize, setFontSize] = useState<FontSize>((localStorage.getItem("carelink-font") as FontSize) || "default");
+  const [reducedMotion, setReducedMotion] = useState(localStorage.getItem("carelink-motion") === "reduced");
+  const [density, setDensity] = useState<Density>((localStorage.getItem("carelink-density") as Density) || "comfortable");
+  const [notify, setNotify] = useState(localStorage.getItem("carelink-notify") !== "off");
   useEffect(() => { document.documentElement.dataset.theme = theme; localStorage.setItem("carelink-theme", theme); }, [theme]);
   useEffect(() => { document.documentElement.dataset.font = fontSize; localStorage.setItem("carelink-font", fontSize); }, [fontSize]);
+  useEffect(() => { document.documentElement.dataset.motion = reducedMotion ? "reduced" : "full"; localStorage.setItem("carelink-motion", reducedMotion ? "reduced" : "full"); }, [reducedMotion]);
+  useEffect(() => { document.documentElement.dataset.density = density; localStorage.setItem("carelink-density", density); }, [density]);
+  useEffect(() => { localStorage.setItem("carelink-notify", notify ? "on" : "off"); }, [notify]);
+  const appearance: Appearance = { theme, setTheme, fontSize, setFontSize, reducedMotion, setReducedMotion, density, setDensity, notify, setNotify };
+  // Keep admin routing in sync with browser back/forward.
   useEffect(() => {
-    if (window.location.pathname === "/admin-demo") { setRole("admin"); setScreen("overview"); }
+    const onPopState = () => setAdminRoute(readAdminRoute());
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
   }, []);
+  const goAdmin = (route: Exclude<AdminRoute, null>) => {
+    const path = route === "dashboard" ? "/admin/dashboard" : "/admin/login";
+    if (window.location.pathname !== path) window.history.pushState({}, "", path);
+    setAdminRoute(route);
+  };
+  const leaveAdmin = () => {
+    setAdminAuthed(false);
+    if (window.location.pathname.startsWith("/admin")) window.history.pushState({}, "", "/");
+    setAdminRoute(null);
+  };
   const login = (nextRole: Role) => { setRole(nextRole); setScreen(roleMeta[nextRole].initial); };
-  const register = (kind: "patient" | "staff") => { setRegisterKind(kind); setView("register"); };
-  if (!role) {
-    if (view === "register") return <Registration kind={registerKind} onBack={() => setView("login")}/>;
-    return <Login onLogin={login} onRegister={register} {...{theme,setTheme,fontSize,setFontSize}}/>;
+  const pickRole = (kind: RegKind) => { setRegisterKind(kind); setView("register"); };
+  // Demonstration-only role switcher. Not an authorization mechanism: it simply
+  // navigates to each role's existing interface for live demos.
+  const switchRole = (nextRole: Role) => {
+    if (nextRole === "admin") { setAdminAuthed(true); setScreen("overview"); goAdmin("dashboard"); return; }
+    if (window.location.pathname.startsWith("/admin")) { setAdminAuthed(false); window.history.pushState({}, "", "/"); setAdminRoute(null); }
+    setRole(nextRole);
+    setScreen(roleMeta[nextRole].initial);
+  };
+
+  // Admin area is isolated from the public login/registration and from the role shell.
+  if (adminRoute) {
+    // Protected dashboard: a direct visit without an authenticated mock session falls back to the admin login.
+    if (adminRoute === "dashboard" && adminAuthed) {
+      return <AppShell role="admin" screen={screen === "overview" || nav.admin.some((item) => item.id === screen) ? screen : "overview"} setScreen={setScreen} logout={leaveAdmin} onSwitchRole={switchRole} appearance={appearance}/>;
+    }
+    return <AdminLogin onAuthenticated={() => { setAdminAuthed(true); setScreen("overview"); goAdmin("dashboard"); }} onExit={leaveAdmin} {...{theme,setTheme,fontSize,setFontSize}}/>;
   }
-  return <AppShell role={role} screen={screen} setScreen={setScreen} logout={() => {setRole(null);setView("login")}} {...{theme,setTheme,fontSize,setFontSize}}/>;
+
+  if (!role) {
+    if (view === "landing") return <Landing onGetStarted={() => setView("role-select")} onSignIn={() => setView("login")} {...{theme,setTheme,fontSize,setFontSize}}/>;
+    if (view === "role-select") return <RoleSelect onPick={pickRole} onBack={() => setView("landing")} onSignIn={() => setView("login")} {...{theme,setTheme,fontSize,setFontSize}}/>;
+    if (view === "register") return <Registration kind={registerKind} onBack={() => setView("landing")} onChangeRole={() => setView("role-select")}/>;
+    return <Login onLogin={login} onRegister={() => setView("role-select")} onRegisterPhysician={() => pickRole("physician")} onBack={() => setView("landing")} {...{theme,setTheme,fontSize,setFontSize}}/>;
+  }
+  return <AppShell role={role} screen={screen} setScreen={setScreen} logout={() => {setRole(null);setView("landing")}} onSwitchRole={switchRole} appearance={appearance}/>;
 }

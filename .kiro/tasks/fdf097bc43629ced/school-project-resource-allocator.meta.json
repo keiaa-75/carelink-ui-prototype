@@ -1,0 +1,494 @@
+{
+  "tasks": {
+    "3. Implement data model components (ExpenseForm, TaskForm)": {
+      "createdAt": 1772612757452,
+      "updatedAt": 1772612757586,
+      "taskId": "3. Implement data model components (ExpenseForm, TaskForm)",
+      "specUri": "file:///c%3A/Users/MozKiT/Desktop/school-project-resource-allocator/.kiro/specs/school-project-resource-allocator/tasks.md",
+      "executionHistory": [
+        {
+          "chatSessionId": "78eef6e5-ed1e-4c84-9b2b-ebf74f2ffd49",
+          "executionId": "cc76f9bc-e901-4b95-bdfb-04e40ea8b961",
+          "timestamp": 1772612757451
+        }
+      ]
+    },
+    "11. Add responsive styling": {
+      "createdAt": 1772614131809,
+      "updatedAt": 1772616022811,
+      "taskId": "11. Add responsive styling",
+      "specUri": "file:///c%3A/Users/MozKiT/Desktop/school-project-resource-allocator/.kiro/specs/school-project-resource-allocator/tasks.md",
+      "executionHistory": [
+        {
+          "chatSessionId": "9bbeb3b8-4167-4efe-934d-53596e3037ed",
+          "executionId": "9cbc60ed-4516-4725-a3de-b22dcd6769f3",
+          "timestamp": 1772614131808
+        },
+        {
+          "chatSessionId": "88aecb7d-d936-41d3-8057-19d9ededcbb5",
+          "executionId": "69e9d103-fe6a-4b69-90ea-f0ab0a7b16b4",
+          "timestamp": 1772615139913
+        },
+        {
+          "chatSessionId": "8f679cf0-d4f9-46a4-b0da-cfb6558485de",
+          "executionId": "aa1a6526-7e67-494b-92fd-fe27be47038e",
+          "timestamp": 1772615768085
+        }
+      ]
+    },
+    "7. Implement ExpenseChart component with Chart.js": {
+      "createdAt": 1772614014894,
+      "updatedAt": 1772614335781,
+      "taskId": "7. Implement ExpenseChart component with Chart.js",
+      "specUri": "file:///c%3A/Users/MozKiT/Desktop/school-project-resource-allocator/.kiro/specs/school-project-resource-allocator/tasks.md",
+      "executionHistory": [
+        {
+          "chatSessionId": "bccd4d97-89d0-4342-b12a-ff298379c6cd",
+          "executionId": "0e23f579-e7e3-4051-9296-3d4d69457f68",
+          "timestamp": 1772614014893
+        }
+      ]
+    },
+    "6. Implement metric display components": {
+      "createdAt": 1772612356323,
+      "updatedAt": 1791037946868,
+      "taskId": "6. Implement metric display components",
+      "specUri": "file:///c%3A/Users/MozKiT/Desktop/school-project-resource-allocator/.kiro/specs/school-project-resource-allocator/tasks.md",
+      "executionHistory": []
+    },
+    "10. Implement App component and wire everything together": {
+      "createdAt": 1772614128354,
+      "updatedAt": 1772615087508,
+      "taskId": "10. Implement App component and wire everything together",
+      "specUri": "file:///c%3A/Users/MozKiT/Desktop/school-project-resource-allocator/.kiro/specs/school-project-resource-allocator/tasks.md",
+      "executionHistory": [
+        {
+          "chatSessionId": "77f8e91d-8bd0-4850-af86-072015bc9967",
+          "executionId": "59717f4e-4560-453c-9dc8-9d9323e18190",
+          "timestamp": 1772614128352
+        },
+        {
+          "chatSessionId": "89b69654-53ab-4bb6-bf75-e1e338ce17d1",
+          "executionId": "d322d9f0-b731-408d-8422-207aed8d0a89",
+          "timestamp": 1772614859332
+        }
+      ]
+    },
+    "10.2 Implement expense CRUD operations in App": {
+      "createdAt": 1772614954992,
+      "updatedAt": 1772615700154,
+      "taskId": "10.2 Implement expense CRUD operations in App",
+      "specUri": "file:///c%3A/Users/MozKiT/Desktop/school-project-resource-allocator/.kiro/specs/school-project-resource-allocator/tasks.md",
+      "executionHistory": [
+        {
+          "chatSessionId": "db222a33-25d1-433f-b011-5ac1c9a72e89",
+          "executionId": "4c433338-603a-4cc1-be56-72b1c4b69156",
+          "timestamp": 1772614954991
+        },
+        {
+          "chatSessionId": "89b69654-53ab-4bb6-bf75-e1e338ce17d1",
+          "executionId": "d322d9f0-b731-408d-8422-207aed8d0a89",
+          "timestamp": 1772615510310
+        },
+        {
+          "chatSessionId": "923a15af-bf03-4319-8aad-28d3a3be401e",
+          "executionId": "1117bde4-abee-420d-8ffc-a46e9aa3a0f5",
+          "timestamp": 1772615670164
+        }
+      ]
+    },
+    "7.1 Create ExpenseChart component": {
+      "createdAt": 1772614023177,
+      "updatedAt": 1772614324345,
+      "taskId": "7.1 Create ExpenseChart component",
+      "specUri": "file:///c%3A/Users/MozKiT/Desktop/school-project-resource-allocator/.kiro/specs/school-project-resource-allocator/tasks.md",
+      "executionHistory": [
+        {
+          "chatSessionId": "bccd4d97-89d0-4342-b12a-ff298379c6cd",
+          "executionId": "0e23f579-e7e3-4051-9296-3d4d69457f68",
+          "timestamp": 1772614023172
+        },
+        {
+          "chatSessionId": "bccd4d97-89d0-4342-b12a-ff298379c6cd",
+          "executionId": "c826fb28-94aa-4641-b9b9-46a46b75b0c8",
+          "timestamp": 1772614078507
+        },
+        {
+          "chatSessionId": "bccd4d97-89d0-4342-b12a-ff298379c6cd",
+          "executionId": "61cbbb76-7973-4363-b73d-76dcc67cfd85",
+          "timestamp": 1772614230762
+        }
+      ]
+    },
+    "11.1 Implement responsive CSS": {
+      "createdAt": 1772614853195,
+      "updatedAt": 1772616014756,
+      "taskId": "11.1 Implement responsive CSS",
+      "specUri": "file:///c%3A/Users/MozKiT/Desktop/school-project-resource-allocator/.kiro/specs/school-project-resource-allocator/tasks.md",
+      "executionHistory": [
+        {
+          "chatSessionId": "9bbeb3b8-4167-4efe-934d-53596e3037ed",
+          "executionId": "9cbc60ed-4516-4725-a3de-b22dcd6769f3",
+          "timestamp": 1772614853193
+        },
+        {
+          "chatSessionId": "c85bf797-29b4-429f-8955-7479c28a0bea",
+          "executionId": "17212d58-2c97-4894-a5b5-61155990a04d",
+          "timestamp": 1772615143023
+        },
+        {
+          "chatSessionId": "8f679cf0-d4f9-46a4-b0da-cfb6558485de",
+          "executionId": "f34681fe-db7e-4971-80c6-eab8b272f18c",
+          "timestamp": 1772615830934
+        },
+        {
+          "chatSessionId": "8f679cf0-d4f9-46a4-b0da-cfb6558485de",
+          "executionId": "aa1a6526-7e67-494b-92fd-fe27be47038e",
+          "timestamp": 1772616014702
+        }
+      ]
+    },
+    "2.1 Create ProjectSetup component with form inputs": {
+      "createdAt": 1772612371859,
+      "updatedAt": 1772612499728,
+      "taskId": "2.1 Create ProjectSetup component with form inputs",
+      "specUri": "file:///c%3A/Users/MozKiT/Desktop/school-project-resource-allocator/.kiro/specs/school-project-resource-allocator/tasks.md",
+      "executionHistory": [
+        {
+          "chatSessionId": "78eef6e5-ed1e-4c84-9b2b-ebf74f2ffd49",
+          "executionId": "cc76f9bc-e901-4b95-bdfb-04e40ea8b961",
+          "timestamp": 1772612371856
+        },
+        {
+          "chatSessionId": "78eef6e5-ed1e-4c84-9b2b-ebf74f2ffd49",
+          "executionId": "2b27bd9d-039a-42ab-b3f5-37a7e7954d81",
+          "timestamp": 1772612425355
+        }
+      ]
+    },
+    "8.2 Implement real-time update logic": {
+      "createdAt": 1772614581770,
+      "updatedAt": 1772614661589,
+      "taskId": "8.2 Implement real-time update logic",
+      "specUri": "file:///c%3A/Users/MozKiT/Desktop/school-project-resource-allocator/.kiro/specs/school-project-resource-allocator/tasks.md",
+      "executionHistory": [
+        {
+          "chatSessionId": "3a54f163-3a3c-4b18-b0bc-bc49763722ea",
+          "executionId": "152252df-406a-4ea7-b608-a215c67b0975",
+          "timestamp": 1772614581769
+        }
+      ]
+    },
+    "3.2 Create TaskForm component": {
+      "createdAt": 1772612628038,
+      "updatedAt": 1772612757058,
+      "taskId": "3.2 Create TaskForm component",
+      "specUri": "file:///c%3A/Users/MozKiT/Desktop/school-project-resource-allocator/.kiro/specs/school-project-resource-allocator/tasks.md",
+      "executionHistory": [
+        {
+          "chatSessionId": "78eef6e5-ed1e-4c84-9b2b-ebf74f2ffd49",
+          "executionId": "cc76f9bc-e901-4b95-bdfb-04e40ea8b961",
+          "timestamp": 1772612628037
+        },
+        {
+          "chatSessionId": "78eef6e5-ed1e-4c84-9b2b-ebf74f2ffd49",
+          "executionId": "b3853a54-f22f-4684-bfb7-f160287cbf04",
+          "timestamp": 1772612651930
+        }
+      ]
+    },
+    "9. Checkpoint - Ensure all tests pass": {
+      "createdAt": 1772614122575,
+      "updatedAt": 1772614756218,
+      "taskId": "9. Checkpoint - Ensure all tests pass",
+      "specUri": "file:///c%3A/Users/MozKiT/Desktop/school-project-resource-allocator/.kiro/specs/school-project-resource-allocator/tasks.md",
+      "executionHistory": [
+        {
+          "chatSessionId": "7375a4c6-67f9-4312-bcce-74fbc324487a",
+          "executionId": "8c5169a1-286f-4852-8d10-586357935476",
+          "timestamp": 1772614122574
+        }
+      ]
+    },
+    "5. Checkpoint - Ensure all tests pass": {
+      "createdAt": 1772613080981,
+      "updatedAt": 1772613281591,
+      "taskId": "5. Checkpoint - Ensure all tests pass",
+      "specUri": "file:///c%3A/Users/MozKiT/Desktop/school-project-resource-allocator/.kiro/specs/school-project-resource-allocator/tasks.md",
+      "executionHistory": [
+        {
+          "chatSessionId": "78eef6e5-ed1e-4c84-9b2b-ebf74f2ffd49",
+          "executionId": "cc76f9bc-e901-4b95-bdfb-04e40ea8b961",
+          "timestamp": 1772613080980
+        },
+        {
+          "chatSessionId": "78eef6e5-ed1e-4c84-9b2b-ebf74f2ffd49",
+          "executionId": "c48c8cd9-6f31-4669-9bf0-2908521b4163",
+          "timestamp": 1772613217326
+        }
+      ]
+    },
+    "1. Set up project structure and utility modules": {
+      "createdAt": 1772612275461,
+      "updatedAt": 1772612328680,
+      "taskId": "1. Set up project structure and utility modules",
+      "specUri": "file:///c%3A/Users/MozKiT/Desktop/school-project-resource-allocator/.kiro/specs/school-project-resource-allocator/tasks.md",
+      "executionHistory": [
+        {
+          "chatSessionId": "4a95f570-b9d5-491a-bff7-d45cec265e6d",
+          "executionId": "e1897b42-a252-4b09-82f7-3349511a487e",
+          "timestamp": 1772612275460
+        }
+      ]
+    },
+    "6.2 Create RiskIndicator component": {
+      "createdAt": 1772613409388,
+      "updatedAt": 1772613599990,
+      "taskId": "6.2 Create RiskIndicator component",
+      "specUri": "file:///c%3A/Users/MozKiT/Desktop/school-project-resource-allocator/.kiro/specs/school-project-resource-allocator/tasks.md",
+      "executionHistory": [
+        {
+          "chatSessionId": "78eef6e5-ed1e-4c84-9b2b-ebf74f2ffd49",
+          "executionId": "cc76f9bc-e901-4b95-bdfb-04e40ea8b961",
+          "timestamp": 1772613409385
+        },
+        {
+          "chatSessionId": "78eef6e5-ed1e-4c84-9b2b-ebf74f2ffd49",
+          "executionId": "e3e47302-9d6b-4dfb-8d0d-e3ffebc86247",
+          "timestamp": 1772613474249
+        }
+      ]
+    },
+    "4. Implement list display components (ExpenseList, TaskList)": {
+      "createdAt": 1772613068067,
+      "updatedAt": 1772613068160,
+      "taskId": "4. Implement list display components (ExpenseList, TaskList)",
+      "specUri": "file:///c%3A/Users/MozKiT/Desktop/school-project-resource-allocator/.kiro/specs/school-project-resource-allocator/tasks.md",
+      "executionHistory": [
+        {
+          "chatSessionId": "78eef6e5-ed1e-4c84-9b2b-ebf74f2ffd49",
+          "executionId": "cc76f9bc-e901-4b95-bdfb-04e40ea8b961",
+          "timestamp": 1772613068066
+        }
+      ]
+    },
+    "4.2 Create TaskList component": {
+      "createdAt": 1772612951443,
+      "updatedAt": 1772613066875,
+      "taskId": "4.2 Create TaskList component",
+      "specUri": "file:///c%3A/Users/MozKiT/Desktop/school-project-resource-allocator/.kiro/specs/school-project-resource-allocator/tasks.md",
+      "executionHistory": [
+        {
+          "chatSessionId": "78eef6e5-ed1e-4c84-9b2b-ebf74f2ffd49",
+          "executionId": "cc76f9bc-e901-4b95-bdfb-04e40ea8b961",
+          "timestamp": 1772612951442
+        },
+        {
+          "chatSessionId": "78eef6e5-ed1e-4c84-9b2b-ebf74f2ffd49",
+          "executionId": "ad068ae9-7f31-447c-acf5-0fb9c9cd9e8a",
+          "timestamp": 1772612972101
+        }
+      ]
+    },
+    "3.1 Create ExpenseForm component": {
+      "createdAt": 1772612506693,
+      "updatedAt": 1772612621943,
+      "taskId": "3.1 Create ExpenseForm component",
+      "specUri": "file:///c%3A/Users/MozKiT/Desktop/school-project-resource-allocator/.kiro/specs/school-project-resource-allocator/tasks.md",
+      "executionHistory": [
+        {
+          "chatSessionId": "78eef6e5-ed1e-4c84-9b2b-ebf74f2ffd49",
+          "executionId": "cc76f9bc-e901-4b95-bdfb-04e40ea8b961",
+          "timestamp": 1772612506689
+        },
+        {
+          "chatSessionId": "78eef6e5-ed1e-4c84-9b2b-ebf74f2ffd49",
+          "executionId": "604ae510-a75f-4b02-99c9-6e61e6a64996",
+          "timestamp": 1772612550875
+        }
+      ]
+    },
+    "6.1 Create BudgetSummary component": {
+      "createdAt": 1772613287342,
+      "updatedAt": 1772613396237,
+      "taskId": "6.1 Create BudgetSummary component",
+      "specUri": "file:///c%3A/Users/MozKiT/Desktop/school-project-resource-allocator/.kiro/specs/school-project-resource-allocator/tasks.md",
+      "executionHistory": [
+        {
+          "chatSessionId": "78eef6e5-ed1e-4c84-9b2b-ebf74f2ffd49",
+          "executionId": "cc76f9bc-e901-4b95-bdfb-04e40ea8b961",
+          "timestamp": 1772613287341
+        },
+        {
+          "chatSessionId": "78eef6e5-ed1e-4c84-9b2b-ebf74f2ffd49",
+          "executionId": "01ac6b67-b833-4abd-b56c-038db4a027d3",
+          "timestamp": 1772613329583
+        }
+      ]
+    },
+    "6.3 Create ContributionSummary component": {
+      "createdAt": 1772613623768,
+      "updatedAt": 1772614006757,
+      "taskId": "6.3 Create ContributionSummary component",
+      "specUri": "file:///c%3A/Users/MozKiT/Desktop/school-project-resource-allocator/.kiro/specs/school-project-resource-allocator/tasks.md",
+      "executionHistory": [
+        {
+          "chatSessionId": "78eef6e5-ed1e-4c84-9b2b-ebf74f2ffd49",
+          "executionId": "cc76f9bc-e901-4b95-bdfb-04e40ea8b961",
+          "timestamp": 1772613623767
+        },
+        {
+          "chatSessionId": "78eef6e5-ed1e-4c84-9b2b-ebf74f2ffd49",
+          "executionId": "f6682f02-8783-44f1-9c78-3d44adef7026",
+          "timestamp": 1772613722008
+        },
+        {
+          "chatSessionId": "2a5bb3a0-bda9-41a4-9ff2-aa728550889c",
+          "executionId": "3957fca7-f137-41f9-9b9a-ab572936165d",
+          "timestamp": 1772613935480
+        }
+      ]
+    },
+    "8.1 Create Dashboard component structure": {
+      "createdAt": 1772614345088,
+      "updatedAt": 1772614677669,
+      "taskId": "8.1 Create Dashboard component structure",
+      "specUri": "file:///c%3A/Users/MozKiT/Desktop/school-project-resource-allocator/.kiro/specs/school-project-resource-allocator/tasks.md",
+      "executionHistory": [
+        {
+          "chatSessionId": "3a54f163-3a3c-4b18-b0bc-bc49763722ea",
+          "executionId": "465f39fe-8a62-47c0-b1cb-915ca5fd903d",
+          "timestamp": 1772614345087
+        },
+        {
+          "chatSessionId": "3a54f163-3a3c-4b18-b0bc-bc49763722ea",
+          "executionId": "eb27ab8b-d857-4ffc-a0e6-1b60bb316f83",
+          "timestamp": 1772614399414
+        },
+        {
+          "chatSessionId": "3a54f163-3a3c-4b18-b0bc-bc49763722ea",
+          "executionId": "152252df-406a-4ea7-b608-a215c67b0975",
+          "timestamp": 1772614525481
+        }
+      ]
+    },
+    "12. Final checkpoint - Ensure all tests pass": {
+      "createdAt": 1772614134566,
+      "updatedAt": 1772615087244,
+      "taskId": "12. Final checkpoint - Ensure all tests pass",
+      "specUri": "file:///c%3A/Users/MozKiT/Desktop/school-project-resource-allocator/.kiro/specs/school-project-resource-allocator/tasks.md",
+      "executionHistory": [
+        {
+          "chatSessionId": "5ff7293a-1c62-40bf-b90e-640e5cd61754",
+          "executionId": "436a8c7a-7c3b-4068-8229-6e557dcfb1ef",
+          "timestamp": 1772614134565
+        }
+      ]
+    },
+    "10.3 Implement task CRUD operations in App": {
+      "createdAt": 1772614957534,
+      "updatedAt": 1772615758852,
+      "taskId": "10.3 Implement task CRUD operations in App",
+      "specUri": "file:///c%3A/Users/MozKiT/Desktop/school-project-resource-allocator/.kiro/specs/school-project-resource-allocator/tasks.md",
+      "executionHistory": [
+        {
+          "chatSessionId": "6c63a2ac-bbe1-48c0-be21-160078acf1ed",
+          "executionId": "4b52fe89-eb39-49ed-a96e-b10f5d24297e",
+          "timestamp": 1772614957533
+        },
+        {
+          "chatSessionId": "89b69654-53ab-4bb6-bf75-e1e338ce17d1",
+          "executionId": "d322d9f0-b731-408d-8422-207aed8d0a89",
+          "timestamp": 1772615527054
+        },
+        {
+          "chatSessionId": "49505eb4-ce93-4d8a-91f5-34e59e02e8fa",
+          "executionId": "98df4029-961d-485e-9b04-08c1dc0c416f",
+          "timestamp": 1772615704224
+        }
+      ]
+    },
+    "10.1 Create App component": {
+      "createdAt": 1772614763344,
+      "updatedAt": 1772615626320,
+      "taskId": "10.1 Create App component",
+      "specUri": "file:///c%3A/Users/MozKiT/Desktop/school-project-resource-allocator/.kiro/specs/school-project-resource-allocator/tasks.md",
+      "executionHistory": [
+        {
+          "chatSessionId": "77f8e91d-8bd0-4850-af86-072015bc9967",
+          "executionId": "59717f4e-4560-453c-9dc8-9d9323e18190",
+          "timestamp": 1772614763343
+        },
+        {
+          "chatSessionId": "8be8d471-212d-4ab2-9fcd-447ed7530149",
+          "executionId": "5e030727-b487-4f60-8610-efa6fa8468d5",
+          "timestamp": 1772614940667
+        },
+        {
+          "chatSessionId": "89b69654-53ab-4bb6-bf75-e1e338ce17d1",
+          "executionId": "d322d9f0-b731-408d-8422-207aed8d0a89",
+          "timestamp": 1772615101660
+        },
+        {
+          "chatSessionId": "89b69654-53ab-4bb6-bf75-e1e338ce17d1",
+          "executionId": "f96c5d44-ea34-47cf-bd4a-650d5b05f951",
+          "timestamp": 1772615204438
+        },
+        {
+          "chatSessionId": "89b69654-53ab-4bb6-bf75-e1e338ce17d1",
+          "executionId": "1323e2c7-39a8-4dfa-b204-b407f6e22716",
+          "timestamp": 1772615304084
+        }
+      ]
+    },
+    "2. Implement ProjectSetup component": {
+      "createdAt": 1772612500629,
+      "updatedAt": 1772612500692,
+      "taskId": "2. Implement ProjectSetup component",
+      "specUri": "file:///c%3A/Users/MozKiT/Desktop/school-project-resource-allocator/.kiro/specs/school-project-resource-allocator/tasks.md",
+      "executionHistory": [
+        {
+          "chatSessionId": "78eef6e5-ed1e-4c84-9b2b-ebf74f2ffd49",
+          "executionId": "cc76f9bc-e901-4b95-bdfb-04e40ea8b961",
+          "timestamp": 1772612500628
+        }
+      ]
+    },
+    "4.1 Create ExpenseList component": {
+      "createdAt": 1772612776538,
+      "updatedAt": 1772612937944,
+      "taskId": "4.1 Create ExpenseList component",
+      "specUri": "file:///c%3A/Users/MozKiT/Desktop/school-project-resource-allocator/.kiro/specs/school-project-resource-allocator/tasks.md",
+      "executionHistory": [
+        {
+          "chatSessionId": "78eef6e5-ed1e-4c84-9b2b-ebf74f2ffd49",
+          "executionId": "cc76f9bc-e901-4b95-bdfb-04e40ea8b961",
+          "timestamp": 1772612776536
+        },
+        {
+          "chatSessionId": "78eef6e5-ed1e-4c84-9b2b-ebf74f2ffd49",
+          "executionId": "3bdec4be-238c-4426-9a43-9c238744b41d",
+          "timestamp": 1772612809297
+        },
+        {
+          "chatSessionId": "78eef6e5-ed1e-4c84-9b2b-ebf74f2ffd49",
+          "executionId": "3d6f47af-6dea-4838-b3c6-ab7d341581fb",
+          "timestamp": 1772612864565
+        }
+      ]
+    },
+    "8. Implement Dashboard component": {
+      "createdAt": 1772614088570,
+      "updatedAt": 1772614685180,
+      "taskId": "8. Implement Dashboard component",
+      "specUri": "file:///c%3A/Users/MozKiT/Desktop/school-project-resource-allocator/.kiro/specs/school-project-resource-allocator/tasks.md",
+      "executionHistory": [
+        {
+          "chatSessionId": "3a54f163-3a3c-4b18-b0bc-bc49763722ea",
+          "executionId": "465f39fe-8a62-47c0-b1cb-915ca5fd903d",
+          "timestamp": 1772614088568
+        }
+      ]
+    }
+  }
+}

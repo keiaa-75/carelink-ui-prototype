@@ -1,0 +1,5 @@
+rules:
+  - capability: web_fetch
+    effect: allow
+    match:
+      - raw.githubusercontent.com
